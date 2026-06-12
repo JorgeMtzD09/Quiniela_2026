@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Partidos: solo lectura pública (marcadores los editas tú en la consola)
+    match /partidos/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Participantes: solo lectura pública
+    match /participantes/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Usuarios: lectura individual para login (no se puede listar todos)
+    match /usuarios/{usuario} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if false;
+    }
+
+    // Pronósticos: lectura pública. Escritura por partido (uno por uno):
+    // se pueden AGREGAR pronósticos nuevos, pero los ya guardados no se pueden
+    // modificar ni borrar desde el cliente (solo el admin, en la consola).
+    match /pronosticos/{clave} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null
+        && request.resource.data.items.diff(resource.data.items).removedKeys().size() == 0
+        && request.resource.data.items.diff(resource.data.items).changedKeys().size() == 0;
+      allow delete: if false;
+    }
+  }
+}

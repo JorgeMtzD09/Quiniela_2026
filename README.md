@@ -1,175 +1,14 @@
 # Quiniela Mundial 2026 — Página Web
 
-Sitio web móvil gratuito para consultar la quiniela del Mundial 2026. Los participantes ven el podio, sus pronósticos y los resultados reales. Tú editas los marcadores en un Google Sheet y la página se actualiza sola.
+Sitio web móvil gratuito para la quiniela del Mundial 2026. Los participantes consultan el podio y pronósticos en **tiempo real** vía Firebase. Cada quien puede **capturar sus pronósticos una sola vez** con un login sencillo (usuario + clave).
 
-## Cómo funciona
+## Funciones
 
-```
-Tú editas marcadores → Google Sheet → Página web (auto-refresco cada 60s) → 5 personas consultan desde el teléfono
-```
-
-- **Sin login** — solo consulta pública
-- **Gratis** — GitHub Pages o Netlify, sin anuncios
-- **Puntos automáticos** — 3 pts por acertar ganador/empate + 1 bono por marcador exacto
-- **5 participantes fijos** — Coque, Abi, Ángel, Abuelo, Tety
-
----
-
-## Paso 1: Crear el Google Sheet
-
-1. Ve a [sheets.google.com](https://sheets.google.com) y crea una hoja nueva.
-2. Renómbrala **"Quiniela Mundial 2026"**.
-3. Crea **3 pestañas** con estos nombres exactos:
-   - `Partidos`
-   - `Pronosticos`
-   - `Participantes`
-
-### Importar los datos prellenados
-
-En la carpeta `data/` de este proyecto hay 3 archivos CSV listos:
-
-| Archivo | Pestaña |
-|---------|---------|
-| `data/Partidos.csv` | Partidos |
-| `data/Pronosticos.csv` | Pronosticos |
-| `data/Participantes.csv` | Participantes |
-
-Para cada uno:
-1. Abre el CSV con un editor de texto o Excel.
-2. Selecciona todo (Cmd+A) y copia.
-3. En la pestaña correspondiente del Google Sheet, haz clic en la celda A1 y pega.
-
-### Estructura de las pestañas
-
-**Partidos** (lo que editas seguido):
-
-| id | grupo | local | visitante | golesLocal | golesVisitante |
-|----|-------|-------|-----------|------------|----------------|
-| 1 | | 🇲🇽México | 🇿🇦Sudáfrica | 2 | 0 |
-| 2 | | 🇰🇷Corea del Sur | 🇨🇿República Checa | 2 | 1 |
-| 3 | | 🇨🇦Canadá | 🇧🇦Bosnia y Herzegovina | 1 | 1 |
-| 4 | | 🇺🇸Estados Unidos | 🇵🇾Paraguay | | |
-
-> Deja `golesLocal` y `golesVisitante` vacíos para partidos que aún no se juegan. Cuando termine un partido, escribe los goles ahí.
-
-**Pronosticos** (se llenan una vez, no se tocan después):
-
-| id | Coque_L | Coque_V | Abi_L | Abi_V | Angel_L | Angel_V | Jefon_L | Jefon_V | Tety_L | Tety_V |
-|----|---------|---------|-------|-------|---------|---------|---------|---------|--------|--------|
-
-**Participantes**:
-
-| clave | nombreVisible |
-|-------|---------------|
-| Coque | Coque |
-| Abi | Abi |
-| Angel | Ángel |
-| Jefon | Abuelo |
-| Tety | Tety |
-
-### Publicar el Sheet
-
-1. Clic en **Compartir** (arriba a la derecha).
-2. Cambia a **"Cualquiera con el enlace"** → rol **"Lector"**.
-3. Copia el enlace. El ID del Sheet es la parte larga de la URL:
-   ```
-   https://docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/edit
-   ```
-
----
-
-## Paso 2: Configurar la página web
-
-1. Abre `app.js`.
-2. Busca la línea:
-   ```js
-   SHEET_ID: '',
-   ```
-3. Pega tu ID entre las comillas:
-   ```js
-   SHEET_ID: '1aBcDeFgHiJkLmNoPqRsTuVwXyZ',
-   ```
-4. (Opcional) Cambia `USE_LOCAL_DATA` a `false` cuando ya tengas el Sheet configurado:
-   ```js
-   USE_LOCAL_DATA: false,
-   ```
-
----
-
-## Paso 3: Probar en local
-
-Abre una terminal en la carpeta del proyecto y ejecuta:
-
-```bash
-# Opción A: Python (ya viene en Mac)
-python3 -m http.server 8080
-
-# Opción B: Node.js
-npx serve .
-```
-
-Luego abre en el navegador: **http://localhost:8080**
-
-Prueba desde el teléfono usando la IP de tu Mac (ej. `http://192.168.1.10:8080`).
-
----
-
-## Paso 4: Publicar gratis (GitHub Pages)
-
-### 4a. Crear repositorio en GitHub
-
-1. Ve a [github.com/new](https://github.com/new).
-2. Nombre: `quiniela-mundial-2026` (o el que quieras).
-3. Público, sin README (ya lo tenemos).
-4. Clic en **Create repository**.
-
-### 4b. Subir los archivos
-
-En la terminal, desde la carpeta del proyecto:
-
-```bash
-git init
-git add index.html styles.css app.js data/ README.md
-git commit -m "Quiniela Mundial 2026 - página web"
-git branch -M main
-git remote add origin https://github.com/TU_USUARIO/quiniela-mundial-2026.git
-git push -u origin main
-```
-
-### 4c. Activar GitHub Pages
-
-1. En tu repo de GitHub → **Settings** → **Pages**.
-2. Source: **Deploy from a branch**.
-3. Branch: **main** → carpeta **/ (root)**.
-4. Guarda. En 1-2 minutos tu sitio estará en:
-   ```
-   https://TU_USUARIO.github.io/quiniela-mundial-2026/
-   ```
-
-Comparte ese link con los 5 participantes.
-
----
-
-## Alternativa: Netlify (aún más fácil)
-
-1. Ve a [app.netlify.com/drop](https://app.netlify.com/drop).
-2. Arrastra la carpeta del proyecto (con `index.html`, `styles.css`, `app.js`, `data/`).
-3. Netlify te da un link tipo `https://random-name.netlify.app`.
-4. (Opcional) En Site settings → Change site name → ponle algo como `quiniela-mundial-2026`.
-
----
-
-## Día a día: actualizar resultados
-
-1. Se juega un partido.
-2. Abres el Google Sheet (desde el teléfono o computadora).
-3. En la pestaña **Partidos**, buscas el partido y escribes `golesLocal` y `golesVisitante`.
-4. Guardas (Google Sheets guarda automáticamente).
-5. Los participantes refrescan la página (o esperan 60 segundos al auto-refresco) y ven el podio actualizado.
-
-**No necesitas tocar la página web ni volver a desplegar.** Solo editas el Sheet.
-
----
+- **Podio**: ranking en vivo con medallas y manejo de empates
+- **Personas**: pronósticos de cada participante vs. resultados reales
+- **Mi Quiniela**: cada participante captura sus pronósticos **uno por uno**; cada pronóstico se bloquea al guardarse
+- **Login**: usuario en minúsculas + clave; el navegador recuerda la sesión
+- **Tiempo real**: cambios en Firebase se ven al instante (sin refrescar manualmente)
 
 ## Reglas de puntuación
 
@@ -181,36 +20,179 @@ Comparte ese link con los 5 participantes.
 
 ---
 
+## Paso 1: Crear proyecto Firebase (gratis)
+
+1. Ve a [console.firebase.google.com](https://console.firebase.google.com) → **Crear proyecto**.
+2. Nombre sugerido: `quiniela-mundial-2026`.
+3. Desactiva Google Analytics (opcional, no lo necesitas).
+4. En el proyecto → **Build** → **Firestore Database** → **Crear base de datos** → modo **Producción** → ubicación cercana (ej. `us-central`).
+5. **Authentication** → **Comenzar** → **Anonymous** → **Activar** (un solo toggle).
+
+### Obtener la config web
+
+1. **Project settings** (engranaje) → **Your apps** → **</> Web**.
+2. Nombre: `quiniela-web` → **Register app**.
+3. Copia el objeto `firebaseConfig`.
+
+### Pegar config en la app
+
+Abre [app.js](app.js) y reemplaza `CONFIG.firebase`:
+
+```js
+firebase: {
+  apiKey: 'AIza...',
+  authDomain: 'tu-proyecto.firebaseapp.com',
+  projectId: 'tu-proyecto',
+  storageBucket: 'tu-proyecto.appspot.com',
+  messagingSenderId: '123456789',
+  appId: '1:123456789:web:abc123',
+},
+USE_LOCAL_FALLBACK: false,
+```
+
+---
+
+## Paso 2: Reglas de seguridad
+
+En Firebase Console → **Firestore** → **Reglas**, pega el contenido de [firestore.rules](firestore.rules) y publica.
+
+Resumen:
+- `partidos`, `participantes`: solo lectura (tú editas marcadores en la consola)
+- `usuarios`: lectura individual para login (no se listan todos)
+- `pronosticos`: lectura pública; se pueden **agregar** pronósticos nuevos (uno por uno), pero los ya guardados **no se pueden modificar ni borrar** desde el cliente (solo el admin)
+
+---
+
+## Paso 3: Importar partidos y participantes (seed)
+
+1. Sube todos los archivos a GitHub Pages (o abre localmente con `python3 -m http.server 8080`).
+2. **Temporalmente** en Reglas de Firestore, cambia `partidos` y `participantes` a:
+   ```
+   allow write: if request.auth != null;
+   ```
+3. Abre `https://tu-sitio/seed.html` (o `http://localhost:8080/seed.html`).
+4. Clic en **Importar partidos y participantes**.
+5. **Restaura** las reglas originales de `firestore.rules`.
+
+Opcional: **Importar pronósticos existentes** si ya tienes datos del Excel (quedan bloqueados). Para esto, agrega temporalmente `allow write: if request.auth != null;` también en `pronosticos`.
+
+---
+
+## Paso 4: Crear usuarios (claves de login)
+
+En Firebase Console → **Firestore** → crea la colección `usuarios` con un documento por persona.
+
+**ID del documento** = usuario en minúsculas (lo que escriben para entrar).
+
+| ID documento | password | clave |
+|--------------|----------|-------|
+| `coque` | `clave123` | `Coque` |
+| `abi` | `clave456` | `Abi` |
+| `angel` | `clave789` | `Angel` |
+| `jefon` | `clave000` | `Jefon` |
+| `tety` | `clave111` | `Tety` |
+
+- `password`: la clave que les das (pueden ser distintas por persona).
+- `clave`: debe coincidir con el ID en la colección `participantes` (Coque, Abi, Angel, Jefon, Tety).
+
+Ejemplo de documento `usuarios/abi`:
+```
+password: "mipassword"
+clave: "Abi"
+```
+
+---
+
+## Paso 5: Publicar en GitHub Pages
+
+1. Sube el proyecto a un repo de GitHub.
+2. **Settings** → **Pages** → branch `main`, carpeta `/ (root)`.
+3. Tu sitio quedará en: `https://TU_USUARIO.github.io/NOMBRE_REPO/`
+
+**Importante:** editar archivos en tu Mac **no** actualiza el sitio. Debes subir los cambios a GitHub (commit/push o editar en la web de GitHub).
+
+---
+
+## Día a día
+
+### Participantes
+1. Abren el link → pestaña **Entrar** (o **Mi Quiniela**).
+2. Escriben usuario + clave (solo la primera vez; después el navegador recuerda).
+3. Capturan goles para los partidos que quieran (pueden hacerlo **uno por uno**, no es necesario llenarlos todos de golpe). Los partidos ya jugados no se pueden pronosticar.
+4. **Guardar pronósticos capturados** → los que llenaron quedan bloqueados; los que dejaron vacíos los pueden capturar después.
+
+### Tú (admin) — desde la consola de Firebase
+
+**Capturar marcador de un partido:**
+1. Firestore → `partidos` → abre el documento (ej. `1` para México vs Sudáfrica).
+2. Edita `golesLocal` y `golesVisitante` (números).
+3. Guarda. El podio se actualiza al instante para todos.
+
+**Liberar un pronóstico de alguien** (caso extraordinario):
+1. Firestore → `pronosticos` → abre el documento (ej. `Coque`).
+2. En el campo `items`, borra la entrada del partido que quieras liberar (ej. la clave `"5"`).
+3. Esa persona podrá volver a capturar y guardar ese partido. Para liberar todos, borra el documento completo.
+
+**Cambiar clave de un usuario:**
+1. Firestore → `usuarios` → documento del usuario → edita `password`.
+
+---
+
 ## Estructura del proyecto
 
 ```
 Quiniela/
 ├── index.html          # Página principal
-├── styles.css          # Estilos mobile-first
-├── app.js              # Lógica (config, fetch, scoring, render)
+├── styles.css          # Estilos
+├── app.js              # Lógica + config Firebase
+├── seed.html           # Importación inicial a Firestore
+├── firestore.rules     # Reglas de seguridad (copiar a Firebase)
 ├── data/
-│   ├── Partidos.csv    # Plantilla para Google Sheet
-│   ├── Pronosticos.csv # Plantilla para Google Sheet
-│   ├── Participantes.csv
-│   └── quiniela.json   # Datos locales (demo/fallback)
-└── README.md           # Este archivo
+│   └── quiniela.json   # Datos para seed / demo local
+└── README.md
+```
+
+## Modelo de datos (Firestore)
+
+```
+partidos/{id}        → { id, local, visitante, golesLocal, golesVisitante }
+participantes/{clave} → { nombreVisible, orden }
+usuarios/{usuario}   → { password, clave }
+pronosticos/{clave}  → { items: { "1": {l,v}, ... }, actualizado }
+                       (cada partido presente en items = pronóstico bloqueado)
 ```
 
 ---
 
 ## Solución de problemas
 
-**La página dice "Error al cargar"**
-- Verifica que el Sheet esté compartido como "Cualquiera con el enlace → Lector".
-- Verifica que el `SHEET_ID` en `app.js` sea correcto.
-- Verifica que las pestañas se llamen exactamente `Partidos`, `Pronosticos`, `Participantes`.
+**"Firebase no configurado" al entrar**
+- Verifica que pegaste la config en `app.js` y `USE_LOCAL_FALLBACK: false`.
 
-**Los puntos no coinciden con el Excel**
-- La página calcula automáticamente. Si cambias un marcador en el Sheet, los puntos se recalculan.
-- Los pronósticos deben estar en la pestaña `Pronosticos` alineados por `id` de partido.
+**Error al guardar pronósticos**
+- Verifica que **Anonymous Auth** esté activado.
+- Verifica las reglas de `firestore.rules` publicadas.
 
-**Quiero cambiar un pronóstico**
-- Edita la pestaña `Pronosticos` en el Google Sheet. La página lo reflejará al refrescar.
+**No aparecen partidos**
+- Ejecuta `seed.html` una vez (con reglas temporales de escritura).
 
-**Quiero agregar más participantes**
-- Agrega filas en `Participantes`, columnas en `Pronosticos`, y actualiza `app.js` si es necesario (la lógica es dinámica, debería funcionar automáticamente).
+**Login dice "Usuario no encontrado"**
+- Crea el documento en `usuarios/{usuario}` con el ID exacto en minúsculas.
+
+**Los cambios de código no se ven en el sitio**
+- Debes subir los archivos a GitHub. Editar localmente no actualiza GitHub Pages.
+
+**Modo demo local**
+- Con `USE_LOCAL_FALLBACK: true` y sin Firebase configurado, la app usa `data/quiniela.json`. El login no funciona en modo demo.
+
+---
+
+## Participantes
+
+| Usuario (login) | Nombre visible | Clave interna |
+|-----------------|----------------|---------------|
+| coque | Coque | Coque |
+| abi | Abi | Abi |
+| angel | Ángel | Angel |
+| jefon | Abuelo | Jefon |
+| tety | Tety | Tety |

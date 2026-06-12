@@ -12,9 +12,9 @@
   <header class="header">
     <div class="header-content">
       <h1>Quiniela Mundial 2026</h1>
-      <p class="subtitle">Fase de Grupos</p>
+      <p class="subtitle" id="headerSubtitle">Fase de Grupos</p>
     </div>
-    <button class="btn-refresh" id="btnRefresh" aria-label="Actualizar">
+    <button class="btn-refresh" id="btnRefresh" aria-label="Actualizar" title="Reconectar">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
         <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
@@ -44,9 +44,38 @@
       <div class="person-summary" id="personSummary"></div>
       <div id="personContent" class="match-list"></div>
     </section>
+
+    <section class="view" id="viewLogin">
+      <div class="section-header">
+        <h2>Iniciar sesión</h2>
+      </div>
+      <div class="login-card" id="loginCard">
+        <p class="login-hint">Ingresa tu usuario y la clave que te compartieron.</p>
+        <form id="loginForm" class="login-form">
+          <label class="form-label" for="loginUsuario">Usuario</label>
+          <input class="form-input" type="text" id="loginUsuario" autocomplete="username"
+                 placeholder="ej. abi" autocapitalize="none" autocorrect="off" required>
+          <label class="form-label" for="loginPassword">Clave</label>
+          <input class="form-input" type="password" id="loginPassword" autocomplete="current-password"
+                 placeholder="Tu clave" required>
+          <p class="login-error" id="loginError" hidden></p>
+          <button type="submit" class="btn-primary" id="btnLogin">Entrar</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="view" id="viewMiQuiniela">
+      <div class="section-header">
+        <h2>Mi Quiniela</h2>
+        <button class="btn-text" id="btnLogout" type="button">Salir</button>
+      </div>
+      <div id="miQuinielaBanner" class="mi-banner"></div>
+      <div id="miQuinielaContent" class="match-list"></div>
+      <div id="miQuinielaActions" class="mi-actions"></div>
+    </section>
   </main>
 
-  <nav class="bottom-nav">
+  <nav class="bottom-nav" id="bottomNav">
     <button class="nav-btn active" data-view="podio">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
@@ -63,8 +92,15 @@
       </svg>
       <span>Personas</span>
     </button>
+    <button class="nav-btn" data-view="miquiniela" id="navMiQuiniela">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+      </svg>
+      <span id="navMiQuinielaLabel">Mi Quiniela</span>
+    </button>
   </nav>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
