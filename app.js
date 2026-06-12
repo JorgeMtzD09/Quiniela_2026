@@ -426,8 +426,8 @@ async function loadData() {
     state.podio = buildPodio(state.partidos, state.participantes, state.pronosticos);
     state.lastUpdate = new Date();
 
-    if (!state.selectedPerson && state.participantes.length) {
-      state.selectedPerson = state.participantes[0].clave;
+    if (!state.selectedPerson && state.podio.length) {
+      state.selectedPerson = state.podio[0].clave;
     }
 
     renderAll();
@@ -443,7 +443,7 @@ async function loadData() {
         state.participantes = data.participantes;
         state.pronosticos = data.pronosticos;
         state.podio = buildPodio(state.partidos, state.participantes, state.pronosticos);
-        if (!state.selectedPerson) state.selectedPerson = state.participantes[0].clave;
+        if (!state.selectedPerson && state.podio.length) state.selectedPerson = state.podio[0].clave;
         renderAll();
         setStatus(`Demo local (fallback) · ${formatTime(new Date())}`, 'ok');
       } catch {
