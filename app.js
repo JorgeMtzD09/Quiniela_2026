@@ -1,5 +1,5 @@
 // ============================================================
-// CONFIGURACIÓN — Pega aquí tu config de Firebase
+// CONFIGURACIÓN — Firebase
 // ============================================================
 export const CONFIG = {
   firebase: {
@@ -10,14 +10,13 @@ export const CONFIG = {
     messagingSenderId: '940858489606',
     appId: '1:940858489606:web:d7d6c50791c56181457c87',
   },
-  USE_LOCAL_FALLBACK: false,
 };
 
 const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 
 // ============================================================
-// Firebase (carga dinámica)
+// Firebase
 // ============================================================
 let db = null;
 let auth = null;
@@ -30,8 +29,6 @@ function isFirebaseConfigured() {
 }
 
 async function initFirebase() {
-  if (!isFirebaseConfigured()) return false;
-
   const appMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
   const fsMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
   const authMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-auth.js`);
@@ -59,7 +56,8 @@ let state = {
   selectedPerson: null,
   session: null,
   firebaseReady: false,
-  saving: false,
+  editingMatchId: null,
+  pendingSave: null,
 };
 
 // ============================================================
@@ -84,11 +82,17 @@ function clearSession() {
   state.session = null;
 }
 
+function displayName() {
+  if (!state.session) return '';
+  const p = state.participantes.find(x => x.clave === state.session.clave);
+  return p ? p.nombreVisible : (state.session.nombreVisible || state.session.clave);
+}
+
 // ============================================================
-// Login
+// Login / Logout
 // ============================================================
 async function login(usuario, password) {
-  if (!db) throw new Error('Firebase no configurado');
+  if (!db) throw new Error('Sin conexión con el servidor');
 
   const u = usuario.trim().toLowerCase();
   if (!u) throw new Error('Escribe tu usuario');
@@ -100,21 +104,24 @@ async function login(usuario, password) {
   const data = snap.data();
   if (data.password !== password) throw new Error('Clave incorrecta');
 
-  const participante = state.participantes.find(p => p.clave === data.clave);
-  saveSession({
-    usuario: u,
-    clave: data.clave,
-    nombreVisible: participante ? participante.nombreVisible : data.clave,
-  });
-
+  saveSession({ usuario: u, clave: data.clave, nombreVisible: data.clave });
   return state.session;
 }
 
 function logout() {
+  teardownListeners();
   clearSession();
-  updateNavForSession();
-  renderLogin();
-  switchView('login');
+  state.selectedPerson = null;
+  state.editingMatchId = null;
+  state.pendingSave = null;
+  state.partidos = [];
+  state.participantes = [];
+  state.pronosticos = {};
+  state.pronosticosMeta = {};
+  state.podio = [];
+  closeModal();
+  updateHeaderSession();
+  applyAuthGate();
 }
 
 // ============================================================
@@ -125,11 +132,7 @@ function pronosticosFromFirestore(docs, partidos) {
   const meta = {};
 
   for (const p of state.participantes) {
-    pronosticos[p.clave] = partidos.map(m => ({
-      id: m.id,
-      golesLocal: null,
-      golesVisitante: null,
-    }));
+    pronosticos[p.clave] = partidos.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
     meta[p.clave] = { items: {} };
   }
 
@@ -139,10 +142,7 @@ function pronosticosFromFirestore(docs, partidos) {
     if (!pronosticos[clave]) return;
 
     const items = data.items || {};
-    meta[clave] = {
-      items,
-      actualizado: data.actualizado || null,
-    };
+    meta[clave] = { items, actualizado: data.actualizado || null };
 
     pronosticos[clave] = partidos.map(m => {
       const item = items[String(m.id)];
@@ -164,8 +164,12 @@ function applyData(partidos, participantes, pronosticos, meta) {
   state.pronosticosMeta = meta;
   state.podio = buildPodio(state.partidos, state.participantes, state.pronosticos);
 
-  if (!state.selectedPerson && state.podio.length) {
-    state.selectedPerson = state.podio[0].clave;
+  if (!state.selectedPerson) {
+    if (state.session && participantes.some(p => p.clave === state.session.clave)) {
+      state.selectedPerson = state.session.clave;
+    } else if (state.podio.length) {
+      state.selectedPerson = state.podio[0].clave;
+    }
   }
 }
 
@@ -179,7 +183,6 @@ function teardownListeners() {
 
 function subscribeFirestore() {
   if (!db) return;
-
   teardownListeners();
   const { collection, onSnapshot, query, orderBy } = firestoreFns;
 
@@ -192,25 +195,20 @@ function subscribeFirestore() {
     const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos);
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
-    if (state.session) renderMiQuiniela();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
   };
 
   unsubscribers.push(
     onSnapshot(query(collection(db, 'partidos'), orderBy('id')), snap => {
-      partidos = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .map(m => ({
-          id: Number(m.id),
-          local: m.local,
-          visitante: m.visitante,
-          golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
-          golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
-        }));
+      partidos = snap.docs.map(d => ({ id: d.id, ...d.data() })).map(m => ({
+        id: Number(m.id),
+        local: m.local,
+        visitante: m.visitante,
+        golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
+        golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
+      }));
       maybeUpdate();
-    }, err => {
-      console.error(err);
-      setStatus('Error al leer partidos', 'error');
-    })
+    }, err => { console.error(err); setStatus('Error al leer partidos', 'error'); })
   );
 
   unsubscribers.push(
@@ -221,85 +219,38 @@ function subscribeFirestore() {
         orden: d.data().orden ?? 0,
       })).sort((a, b) => a.orden - b.orden || a.nombreVisible.localeCompare(b.nombreVisible, 'es'));
       maybeUpdate();
-    }, err => {
-      console.error(err);
-      setStatus('Error al leer participantes', 'error');
-    })
+    }, err => { console.error(err); setStatus('Error al leer participantes', 'error'); })
   );
 
   unsubscribers.push(
     onSnapshot(collection(db, 'pronosticos'), snap => {
       pronosticosDocs = snap.docs;
       maybeUpdate();
-    }, err => {
-      console.error(err);
-      setStatus('Error al leer pronósticos', 'error');
-    })
+    }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
   );
 }
 
 // ============================================================
-// Fallback local (demo)
+// Guardar un pronóstico (por partido)
 // ============================================================
-async function loadLocalFallback() {
-  const res = await fetch('data/quiniela.json');
-  if (!res.ok) throw new Error('No se pudo cargar data/quiniela.json');
-  const data = await res.json();
-
-  const meta = {};
-  for (const p of data.participantes) {
-    const items = {};
-    (data.pronosticos[p.clave] || []).forEach(pr => {
-      if (pr.golesLocal != null && pr.golesVisitante != null) {
-        items[String(pr.id)] = { l: pr.golesLocal, v: pr.golesVisitante };
-      }
-    });
-    meta[p.clave] = { items };
-  }
-
-  applyData(data.partidos, data.participantes, data.pronosticos, meta);
-  setStatus(`Demo local · ${formatTime(new Date())}`, 'ok');
-}
-
-// ============================================================
-// Guardar pronósticos
-// ============================================================
-async function saveMiQuiniela(formData) {
-  if (!state.session) throw new Error('Debes iniciar sesión');
-  if (!db) throw new Error('Firebase no configurado');
+async function saveSingleMatch(matchId, gl, gv) {
+  if (!state.session) throw new Error('Inicia sesión');
+  if (!db) throw new Error('Sin conexión');
 
   const clave = state.session.clave;
   const meta = state.pronosticosMeta[clave] || { items: {} };
-  const savedItems = meta.items || {};
+  const saved = meta.items || {};
 
-  // Solo se guardan los pronósticos NUEVOS capturados (uno por uno o varios).
-  const nuevos = {};
-  for (const m of state.partidos) {
-    if (m.golesLocal !== null) continue;            // ya jugado: no se puede pronosticar
-    if (savedItems[String(m.id)]) continue;          // ya guardado antes: bloqueado
-    const l = formData.get(`l_${m.id}`);
-    const v = formData.get(`v_${m.id}`);
-    if (l === '' || v === '' || l == null || v == null) continue; // sin capturar: se permite dejarlo para después
-    const gl = Number(l);
-    const gv = Number(v);
-    if (!Number.isInteger(gl) || !Number.isInteger(gv) || gl < 0 || gv < 0 || gl > 20 || gv > 20) {
-      throw new Error('Los goles deben ser números enteros entre 0 y 20');
-    }
-    nuevos[String(m.id)] = { l: gl, v: gv };
-  }
+  if (saved[String(matchId)]) throw new Error('Ese pronóstico ya está guardado');
 
-  const cantidad = Object.keys(nuevos).length;
-  if (cantidad === 0) {
-    throw new Error('No capturaste ningún pronóstico nuevo');
-  }
+  const m = state.partidos.find(x => x.id === matchId);
+  if (!m || m.golesLocal !== null) throw new Error('Ese partido ya no se puede pronosticar');
 
   const { doc, setDoc, serverTimestamp } = firestoreFns;
   await setDoc(doc(db, 'pronosticos', clave), {
-    items: { ...savedItems, ...nuevos },
+    items: { ...saved, [String(matchId)]: { l: gl, v: gv } },
     actualizado: serverTimestamp(),
   }, { merge: true });
-
-  return cantidad;
 }
 
 // ============================================================
@@ -316,9 +267,7 @@ function calcPoints(predL, predV, realL, realV) {
   if (realL === null || realV === null) return null;
   if (predL === null || predV === null) return 0;
   let pts = 0;
-  const predOut = getOutcome(predL, predV);
-  const realOut = getOutcome(realL, realV);
-  if (predOut === realOut) pts += 3;
+  if (getOutcome(predL, predV) === getOutcome(realL, realV)) pts += 3;
   if (predL === realL && predV === realV) pts += 1;
   return pts;
 }
@@ -353,7 +302,7 @@ function buildPodio(partidos, participantes, pronosticos) {
 }
 
 // ============================================================
-// Rendering helpers
+// Render helpers
 // ============================================================
 function splitFlag(str) {
   if (!str) return { flag: '', name: '' };
@@ -402,13 +351,20 @@ function renderPersonTabs() {
   const ordered = state.podio.length
     ? state.podio.map(p => ({ clave: p.clave, nombreVisible: p.nombre }))
     : state.participantes;
-  el.innerHTML = ordered.map(p => `
+  el.innerHTML = ordered.map(p => {
+    const isMe = state.session && state.session.clave === p.clave;
+    return `
     <button class="person-tab ${state.selectedPerson === p.clave ? 'active' : ''}" data-person="${p.clave}">
-      ${p.nombreVisible}
-    </button>
-  `).join('');
+      ${p.nombreVisible}${isMe ? ' <span class="tab-me">(tú)</span>' : ''}
+    </button>`;
+  }).join('');
   el.querySelectorAll('.person-tab').forEach(btn => {
     btn.addEventListener('click', () => {
+      if (state.editingMatchId !== null) {
+        const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de persona?');
+        if (!ok) return;
+        state.editingMatchId = null;
+      }
       state.selectedPerson = btn.dataset.person;
       renderPersonTabs();
       renderPersonDetail();
@@ -420,6 +376,9 @@ function renderPersonDetail() {
   const person = state.selectedPerson;
   if (!person) return;
 
+  const isOwn = !!(state.session && state.session.clave === person);
+  const meta = state.pronosticosMeta[person] || { items: {} };
+  const savedItems = meta.items || {};
   const preds = state.pronosticos[person] || [];
   const predMap = {};
   preds.forEach(pr => { predMap[pr.id] = pr; });
@@ -439,26 +398,61 @@ function renderPersonDetail() {
   const played = state.partidos.filter(m => m.golesLocal !== null).length;
   document.getElementById('playedCount').textContent = `${played}/${state.partidos.length}`;
 
+  const editableCount = isOwn
+    ? state.partidos.filter(m => m.golesLocal === null && !savedItems[String(m.id)]).length
+    : 0;
+  document.getElementById('quinielaHint').innerHTML = (isOwn && editableCount > 0)
+    ? `<p class="edit-hint">Toca un marcador para capturar tu pronóstico. Tienes <strong>${editableCount}</strong> por capturar.</p>`
+    : '';
+
   document.getElementById('personContent').innerHTML = state.partidos.map(m => {
-    const pr = predMap[m.id];
     const isPlayed = m.golesLocal !== null;
+    const saved = savedItems[String(m.id)];
+    const pr = predMap[m.id];
+    const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+
+    // Editable: es tu propia quiniela, partido no jugado y sin pronóstico guardado
+    if (isOwn && !isPlayed && !saved) {
+      return `
+        <div class="match-card form-card editable-card" data-match-id="${m.id}">
+          ${teams}
+          <div class="form-score-row">
+            <div class="form-score-field">
+              <label class="form-score-label">${splitFlag(m.local).name || 'Local'}</label>
+              <input class="form-score-input" type="number" min="0" max="20" step="1" name="l_${m.id}" inputmode="numeric" placeholder="-">
+            </div>
+            <span class="form-score-sep">—</span>
+            <div class="form-score-field">
+              <label class="form-score-label">${splitFlag(m.visitante).name || 'Visitante'}</label>
+              <input class="form-score-input" type="number" min="0" max="20" step="1" name="v_${m.id}" inputmode="numeric" placeholder="-">
+            </div>
+          </div>
+          <div class="edit-actions" hidden>
+            <button type="button" class="btn-secondary btn-cancel-edit">Cancelar</button>
+            <button type="button" class="btn-primary btn-save-edit">Guardar</button>
+          </div>
+        </div>`;
+    }
+
+    // Solo lectura
     const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
     const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : null;
     const predText = hasPred ? `${pr.golesLocal} - ${pr.golesVisitante}` : '—';
     const realText = isPlayed ? `${m.golesLocal} - ${m.golesVisitante}` : '—';
     let stateClass = 'state-pending';
     if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
-    const ptsHTML = isPlayed
-      ? `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`
-      : `<span class="match-points pts-pending">Por jugar</span>`;
+    let ptsHTML;
+    if (isPlayed) {
+      ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
+    } else if (saved) {
+      ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
+    } else {
+      ptsHTML = `<span class="match-points pts-pending">Por jugar</span>`;
+    }
 
     return `
       <div class="match-card ${stateClass}">
-        <div class="match-teams">
-          ${teamBlock(m.local, 'home')}
-          <span class="match-vs">vs</span>
-          ${teamBlock(m.visitante, 'away')}
-        </div>
+        ${teams}
         <div class="score-grid">
           <div class="score-box pred"><div class="score-label">Pronóstico</div><div class="score-value ${hasPred ? '' : 'empty'}">${predText}</div></div>
           <div class="score-box real"><div class="score-label">Resultado</div><div class="score-value ${isPlayed ? '' : 'empty'}">${realText}</div></div>
@@ -466,117 +460,139 @@ function renderPersonDetail() {
         <div class="match-footer">${ptsHTML}</div>
       </div>`;
   }).join('');
+
+  attachEditingListeners();
 }
 
-function renderLogin() {
-  const err = document.getElementById('loginError');
-  err.hidden = true;
-  err.textContent = '';
-  if (!state.session) return;
-  document.getElementById('loginUsuario').value = state.session.usuario || '';
+// ============================================================
+// Edición por partido (uno a la vez)
+// ============================================================
+function attachEditingListeners() {
+  document.querySelectorAll('.editable-card').forEach(card => {
+    const id = Number(card.dataset.matchId);
+    card.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('focus', () => enterEditMode(id));
+    });
+    const cancel = card.querySelector('.btn-cancel-edit');
+    const save = card.querySelector('.btn-save-edit');
+    if (cancel) cancel.addEventListener('click', () => exitEditMode(true));
+    if (save) save.addEventListener('click', () => openConfirm(id));
+  });
 }
 
-function renderMiQuiniela() {
-  const banner = document.getElementById('miQuinielaBanner');
-  const content = document.getElementById('miQuinielaContent');
-  const actions = document.getElementById('miQuinielaActions');
+function enterEditMode(id) {
+  if (state.editingMatchId === id) return;
+  if (state.editingMatchId !== null) return;
+  state.editingMatchId = id;
+  document.querySelectorAll('.editable-card').forEach(card => {
+    const cid = Number(card.dataset.matchId);
+    const actions = card.querySelector('.edit-actions');
+    if (cid === id) {
+      card.classList.add('editing');
+      if (actions) actions.hidden = false;
+    } else {
+      card.classList.add('locked');
+      card.querySelectorAll('input').forEach(i => { i.disabled = true; });
+    }
+  });
+}
 
-  if (!state.session) {
-    banner.innerHTML = '';
-    content.innerHTML = '<div class="info-box">Inicia sesión para capturar tus pronósticos.</div>';
-    actions.innerHTML = '';
+function exitEditMode(clear) {
+  const id = state.editingMatchId;
+  state.editingMatchId = null;
+  document.querySelectorAll('.editable-card').forEach(card => {
+    card.classList.remove('locked', 'editing');
+    card.querySelectorAll('input').forEach(i => { i.disabled = false; });
+    const actions = card.querySelector('.edit-actions');
+    if (actions) actions.hidden = true;
+  });
+  if (clear && id != null) {
+    const card = document.querySelector(`.editable-card[data-match-id="${id}"]`);
+    if (card) card.querySelectorAll('input').forEach(i => { i.value = ''; });
+  }
+}
+
+function openConfirm(matchId) {
+  const card = document.querySelector(`.editable-card[data-match-id="${matchId}"]`);
+  if (!card) return;
+  const lRaw = card.querySelector(`input[name="l_${matchId}"]`).value;
+  const vRaw = card.querySelector(`input[name="v_${matchId}"]`).value;
+
+  if (lRaw === '' || vRaw === '') { alert('Escribe ambos marcadores antes de guardar.'); return; }
+  const gl = Number(lRaw), gv = Number(vRaw);
+  if (!Number.isInteger(gl) || !Number.isInteger(gv) || gl < 0 || gv < 0 || gl > 20 || gv > 20) {
+    alert('Los goles deben ser números enteros entre 0 y 20.');
     return;
   }
 
-  const clave = state.session.clave;
-  const meta = state.pronosticosMeta[clave] || { items: {} };
-  const savedItems = meta.items || {};
+  const m = state.partidos.find(x => x.id === matchId);
+  state.pendingSave = { matchId, gl, gv };
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-match">
+      <span class="modal-team">${m.local}</span>
+      <span class="modal-score">${gl} - ${gv}</span>
+      <span class="modal-team">${m.visitante}</span>
+    </div>`;
+  document.getElementById('confirmModal').hidden = false;
+}
 
-  const guardados = Object.keys(savedItems).length;
-  const porCapturar = state.partidos.filter(m => m.golesLocal === null && !savedItems[String(m.id)]);
+function closeModal() {
+  const modal = document.getElementById('confirmModal');
+  if (modal) modal.hidden = true;
+}
 
-  if (porCapturar.length > 0) {
-    banner.innerHTML = `<div class="info-box info-edit">Tienes <strong>${guardados}</strong> ${guardados === 1 ? 'pronóstico guardado' : 'pronósticos guardados'} y <strong>${porCapturar.length}</strong> por capturar. Puedes guardarlos de uno en uno; cada pronóstico que guardes queda bloqueado.</div>`;
-  } else if (guardados > 0) {
-    banner.innerHTML = `<div class="info-box info-locked">Ya capturaste todos tus pronósticos disponibles (${guardados} guardados). Están bloqueados.</div>`;
-  } else {
-    banner.innerHTML = `<div class="info-box">No hay partidos disponibles para pronosticar por ahora.</div>`;
+async function handleModalConfirm() {
+  if (!state.pendingSave) return;
+  const { matchId, gl, gv } = state.pendingSave;
+  const btn = document.getElementById('modalConfirm');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await saveSingleMatch(matchId, gl, gv);
+    state.editingMatchId = null;
+    state.pendingSave = null;
+    closeModal();
+    renderPersonDetail();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
   }
+}
 
-  content.innerHTML = `<form id="miQuinielaForm" class="mi-form">${state.partidos.map(m => {
-    const isPlayed = m.golesLocal !== null;
-    const saved = savedItems[String(m.id)];
-    const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+function handleModalCancel() {
+  closeModal();
+  state.pendingSave = null;
+  exitEditMode(true);
+}
 
-    // Ya guardado: bloqueado, se muestra el pronóstico
-    if (saved) {
-      return `
-        <div class="match-card form-card saved-card">
-          ${teams}
-          <div class="form-saved-row">
-            <span class="form-saved-score">${saved.l} - ${saved.v}</span>
-            <span class="saved-badge">Guardado</span>
-          </div>
-        </div>`;
-    }
+// ============================================================
+// Header / Auth gate
+// ============================================================
+function updateHeaderSession() {
+  const logged = !!state.session;
+  document.getElementById('btnLogout').hidden = !logged;
+  document.getElementById('headerSubtitle').textContent = logged ? `Hola, ${displayName()}` : 'Fase de Grupos';
+}
 
-    // Jugado y sin pronóstico guardado: ya no se puede pronosticar
-    if (isPlayed) {
-      return `
-        <div class="match-card form-card disabled-card">
-          ${teams}
-          <p class="form-note">Partido ya jugado — no se puede pronosticar</p>
-        </div>`;
-    }
+function applyAuthGate() {
+  const logged = !!state.session;
+  document.getElementById('bottomNav').style.display = logged ? 'flex' : 'none';
+  document.getElementById('btnRefresh').style.display = logged ? '' : 'none';
+  document.getElementById('btnLogout').hidden = !logged;
 
-    // Editable
-    return `
-      <div class="match-card form-card">
-        ${teams}
-        <div class="form-score-row">
-          <div class="form-score-field">
-            <label class="form-score-label">${splitFlag(m.local).name || 'Local'}</label>
-            <input class="form-score-input" type="number" min="0" max="20" step="1" name="l_${m.id}" inputmode="numeric" placeholder="-">
-          </div>
-          <span class="form-score-sep">—</span>
-          <div class="form-score-field">
-            <label class="form-score-label">${splitFlag(m.visitante).name || 'Visitante'}</label>
-            <input class="form-score-input" type="number" min="0" max="20" step="1" name="v_${m.id}" inputmode="numeric" placeholder="-">
-          </div>
-        </div>
-      </div>`;
-  }).join('')}</form>`;
-
-  if (porCapturar.length > 0) {
-    actions.innerHTML = `
-      <p class="save-warning">Solo se guardarán los pronósticos que hayas capturado. Una vez guardados, no se pueden editar.</p>
-      <button type="button" class="btn-primary btn-save" id="btnSaveQuiniela">Guardar pronósticos capturados</button>
-      <p class="save-error" id="saveError" hidden></p>`;
-    document.getElementById('btnSaveQuiniela').addEventListener('click', handleSaveQuiniela);
-  } else {
-    actions.innerHTML = '';
+  if (!logged) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('viewLogin').classList.add('active');
   }
 }
 
 function renderAll() {
   renderPodio();
   renderPersonTabs();
-  renderPersonDetail();
-  updateNavForSession();
-}
-
-function updateNavForSession() {
-  const label = document.getElementById('navMiQuinielaLabel');
-  const navBtn = document.getElementById('navMiQuiniela');
-  if (state.session) {
-    label.textContent = 'Mi Quiniela';
-    navBtn.dataset.view = 'miquiniela';
-    document.getElementById('headerSubtitle').textContent = `Hola, ${state.session.nombreVisible}`;
-  } else {
-    label.textContent = 'Entrar';
-    navBtn.dataset.view = 'login';
-    document.getElementById('headerSubtitle').textContent = 'Fase de Grupos';
-  }
+  if (state.editingMatchId === null) renderPersonDetail();
+  updateHeaderSession();
 }
 
 // ============================================================
@@ -592,17 +608,29 @@ function formatTime(date) {
   return date.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 }
 
-function showConfigError() {
-  document.getElementById('podioContent').innerHTML = `
-    <div class="error-box">
-      <strong>Configuración necesaria</strong>
-      <p style="margin-top:8px">Pega tu configuración de Firebase en <code>app.js</code> (CONFIG.firebase).</p>
-      <p style="margin-top:8px;font-size:0.8rem">Mientras tanto, se usan los datos locales de demostración.</p>
-    </div>`;
+// ============================================================
+// Navegación
+// ============================================================
+function switchView(viewKey) {
+  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela' };
+  const target = views[viewKey] ? viewKey : 'podio';
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(views[target]).classList.add('active');
+  if (target === 'quiniela') renderPersonDetail();
+}
+
+function initNavigation() {
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!state.session) return;
+      switchView(btn.dataset.view);
+    });
+  });
 }
 
 // ============================================================
-// Event handlers
+// Handlers de login y reconexión
 // ============================================================
 async function handleLogin(e) {
   e.preventDefault();
@@ -613,13 +641,18 @@ async function handleLogin(e) {
   btn.textContent = 'Entrando...';
 
   try {
+    if (!state.firebaseReady) await ensureFirebase();
     await login(
       document.getElementById('loginUsuario').value,
       document.getElementById('loginPassword').value
     );
-    updateNavForSession();
-    renderMiQuiniela();
-    switchView('miquiniela');
+    document.getElementById('loginPassword').value = '';
+    state.selectedPerson = state.session.clave;
+    subscribeFirestore();
+    updateHeaderSession();
+    applyAuthGate();
+    switchView('quiniela');
+    setStatus('Conectando...', 'loading');
   } catch (err) {
     errEl.textContent = err.message;
     errEl.hidden = false;
@@ -629,79 +662,18 @@ async function handleLogin(e) {
   }
 }
 
-async function handleSaveQuiniela() {
-  if (state.saving) return;
-  const ok = confirm('¿Guardar los pronósticos capturados?\n\nLos que guardes ya NO podrás editarlos. Los que dejes vacíos los podrás capturar después.');
-  if (!ok) return;
-
-  const errEl = document.getElementById('saveError');
-  const btn = document.getElementById('btnSaveQuiniela');
-  errEl.hidden = true;
-  state.saving = true;
-  btn.disabled = true;
-  btn.textContent = 'Guardando...';
-
-  try {
-    const form = document.getElementById('miQuinielaForm');
-    const cantidad = await saveMiQuiniela(new FormData(form));
-    alert(`¡${cantidad} ${cantidad === 1 ? 'pronóstico guardado' : 'pronósticos guardados'}! Ya quedaron bloqueados.`);
-    renderMiQuiniela();
-  } catch (err) {
-    errEl.textContent = err.message;
-    errEl.hidden = false;
-  } finally {
-    state.saving = false;
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Guardar pronósticos capturados';
-    }
-  }
-}
-
-function switchView(viewKey) {
-  const views = {
-    podio: 'viewPodio',
-    personas: 'viewPersonas',
-    login: 'viewLogin',
-    miquiniela: 'viewMiQuiniela',
-  };
-  const target = viewKey === 'login' && state.session ? 'miquiniela' : viewKey;
-  document.querySelectorAll('.nav-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.view === target || (target === 'miquiniela' && b.dataset.view === 'miquiniela'));
-  });
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.getElementById(views[target]).classList.add('active');
-  if (target === 'miquiniela') renderMiQuiniela();
-  if (target === 'login') renderLogin();
-}
-
-function initNavigation() {
-  document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      if (view === 'miquiniela' && !state.session) {
-        switchView('login');
-        return;
-      }
-      switchView(view);
-    });
-  });
-}
-
 async function reconnect() {
+  if (!state.session) return;
   const btn = document.getElementById('btnRefresh');
   btn.classList.add('spinning');
   setStatus('Reconectando...');
   try {
-    if (state.firebaseReady) {
-      subscribeFirestore();
-      setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-    } else {
-      await bootstrap();
-    }
+    if (!state.firebaseReady) await ensureFirebase();
+    subscribeFirestore();
+    setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
   } catch (err) {
-    setStatus('Error al reconectar', 'error');
     console.error(err);
+    setStatus('Error al reconectar', 'error');
   } finally {
     btn.classList.remove('spinning');
   }
@@ -710,53 +682,52 @@ async function reconnect() {
 // ============================================================
 // Bootstrap
 // ============================================================
+async function ensureFirebase() {
+  if (state.firebaseReady) return;
+  if (!isFirebaseConfigured()) throw new Error('Firebase no configurado');
+  await initFirebase();
+  state.firebaseReady = true;
+}
+
 async function bootstrap() {
   state.session = getSession();
   setStatus('Conectando...');
 
   try {
-    if (isFirebaseConfigured()) {
-      const ok = await initFirebase();
-      if (ok) {
-        state.firebaseReady = true;
-        subscribeFirestore();
-        setStatus('Conectando en tiempo real...', 'loading');
-        return;
-      }
-    }
-
-    if (CONFIG.USE_LOCAL_FALLBACK) {
-      await loadLocalFallback();
-      renderAll();
-      updateNavForSession();
-      renderMiQuiniela();
-      return;
-    }
-
-    showConfigError();
-    setStatus('Sin configurar', 'error');
+    await ensureFirebase();
   } catch (err) {
     console.error(err);
-    if (CONFIG.USE_LOCAL_FALLBACK) {
-      try {
-        await loadLocalFallback();
-        renderAll();
-        updateNavForSession();
-        renderMiQuiniela();
-        setStatus(`Demo local (fallback) · ${formatTime(new Date())}`, 'ok');
-        return;
-      } catch { /* fall through */ }
-    }
-    setStatus('Error al cargar', 'error');
-    document.getElementById('podioContent').innerHTML = `
-      <div class="error-box"><strong>Error</strong><p style="margin-top:8px">${err.message}</p></div>`;
+    setStatus('Sin conexión con el servidor', 'error');
+    const errEl = document.getElementById('loginError');
+    errEl.textContent = 'No se pudo conectar. Revisa tu internet e inténtalo de nuevo.';
+    errEl.hidden = false;
+    clearSession();
+    applyAuthGate();
+    return;
+  }
+
+  updateHeaderSession();
+  if (state.session) {
+    state.selectedPerson = state.session.clave;
+    subscribeFirestore();
+    applyAuthGate();
+    switchView('podio');
+    setStatus('Conectando...', 'loading');
+  } else {
+    applyAuthGate();
+    setStatus('Inicia sesión para continuar', 'loading');
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
-  document.getElementById('loginForm').addEventListener('submit', handleLogin);
   document.getElementById('btnLogout').addEventListener('click', logout);
+  document.getElementById('loginForm').addEventListener('submit', handleLogin);
+  document.getElementById('modalConfirm').addEventListener('click', handleModalConfirm);
+  document.getElementById('modalCancel').addEventListener('click', handleModalCancel);
+  document.getElementById('confirmModal').addEventListener('click', e => {
+    if (e.target.id === 'confirmModal') handleModalCancel();
+  });
   bootstrap();
 });

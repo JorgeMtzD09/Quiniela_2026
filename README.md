@@ -4,10 +4,9 @@ Sitio web móvil gratuito para la quiniela del Mundial 2026. Los participantes c
 
 ## Funciones
 
+- **Login obligatorio**: sin iniciar sesión no se ve nada (ni podio ni resultados). Usuario en minúsculas + clave; el navegador recuerda la sesión
 - **Podio**: ranking en vivo con medallas y manejo de empates
-- **Personas**: pronósticos de cada participante vs. resultados reales
-- **Mi Quiniela**: cada participante captura sus pronósticos **uno por uno**; cada pronóstico se bloquea al guardarse
-- **Login**: usuario en minúsculas + clave; el navegador recuerda la sesión
+- **Quiniela**: pronósticos de cada participante vs. resultados reales. En tu propia pestaña capturas tus pronósticos **uno por uno**; al guardar cada uno (con confirmación) queda bloqueado
 - **Tiempo real**: cambios en Firebase se ven al instante (sin refrescar manualmente)
 
 ## Reglas de puntuación
@@ -116,10 +115,12 @@ clave: "Abi"
 ## Día a día
 
 ### Participantes
-1. Abren el link → pestaña **Entrar** (o **Mi Quiniela**).
+1. Abren el link → aparece la pantalla de **Iniciar sesión** (sin login no se ve nada).
 2. Escriben usuario + clave (solo la primera vez; después el navegador recuerda).
-3. Capturan goles para los partidos que quieran (pueden hacerlo **uno por uno**, no es necesario llenarlos todos de golpe). Los partidos ya jugados no se pueden pronosticar.
-4. **Guardar pronósticos capturados** → los que llenaron quedan bloqueados; los que dejaron vacíos los pueden capturar después.
+3. Van a la pestaña **Quiniela** → su propia pestaña (marcada con "(tú)").
+4. Tocan el marcador de un partido para capturarlo. Aparecen los botones **Guardar** y **Cancelar** para ese partido (solo se puede editar uno a la vez).
+5. Al **Guardar** sale un modal de confirmación. Si confirman, ese pronóstico se guarda y queda bloqueado. Si cancelan, se borra lo escrito.
+6. Repiten partido por partido. Los ya jugados no se pueden pronosticar.
 
 ### Tú (admin) — desde la consola de Firebase
 

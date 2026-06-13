@@ -454,6 +454,141 @@ body {
   color: #92400e;
 }
 
+.match-points.pts-saved {
+  background: var(--green-light);
+  color: var(--green-dark);
+}
+
+/* Edición por partido */
+.edit-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.editable-card {
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.editable-card.editing {
+  border: 2px solid var(--green-mid);
+  box-shadow: 0 0 0 3px rgba(45, 106, 63, 0.12), var(--shadow);
+}
+
+.editable-card.locked {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.edit-actions[hidden] {
+  display: none;
+}
+
+.edit-actions .btn-secondary,
+.edit-actions .btn-primary {
+  margin-top: 0;
+}
+
+.btn-secondary {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--text);
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-secondary:active {
+  background: #f3f4f6;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-overlay[hidden] {
+  display: none;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 22px 20px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: var(--shadow-md);
+}
+
+.modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.modal-match {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.modal-team {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.modal-score {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: var(--green-dark);
+  white-space: nowrap;
+}
+
+.modal-warn {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 16px 0;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.modal-actions .btn-secondary,
+.modal-actions .btn-primary {
+  margin-top: 0;
+}
+
+.tab-me {
+  font-weight: 500;
+  opacity: 0.75;
+}
+
 /* Bottom nav */
 .bottom-nav {
   position: fixed;
@@ -537,12 +672,44 @@ body {
   word-break: break-all;
 }
 
+/* Header actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-logout {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 20px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.btn-logout:active {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /* Login & forms */
 .login-card {
   background: var(--card);
   border-radius: var(--radius);
-  padding: 20px 16px;
+  padding: 24px 20px;
   box-shadow: var(--shadow);
+  max-width: 380px;
+  margin: 24px auto 0;
+}
+
+.login-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--green-dark);
+  margin-bottom: 8px;
 }
 
 .login-hint {

@@ -14,12 +14,15 @@
       <h1>Quiniela Mundial 2026</h1>
       <p class="subtitle" id="headerSubtitle">Fase de Grupos</p>
     </div>
-    <button class="btn-refresh" id="btnRefresh" aria-label="Actualizar" title="Reconectar">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-      </svg>
-    </button>
+    <div class="header-actions">
+      <button class="btn-logout" id="btnLogout" type="button" hidden>Salir</button>
+      <button class="btn-refresh" id="btnRefresh" aria-label="Actualizar" title="Reconectar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+    </div>
   </header>
 
   <div class="status-bar" id="statusBar">
@@ -28,33 +31,14 @@
   </div>
 
   <main class="main">
-    <section class="view active" id="viewPodio">
-      <div class="section-header">
-        <h2>Tabla General</h2>
-      </div>
-      <div id="podioContent" class="podio-list"></div>
-    </section>
-
-    <section class="view" id="viewPersonas">
-      <div class="section-header">
-        <h2>Pronósticos</h2>
-        <span class="badge" id="playedCount">0/72</span>
-      </div>
-      <div class="person-tabs" id="personTabs"></div>
-      <div class="person-summary" id="personSummary"></div>
-      <div id="personContent" class="match-list"></div>
-    </section>
-
     <section class="view" id="viewLogin">
-      <div class="section-header">
-        <h2>Iniciar sesión</h2>
-      </div>
       <div class="login-card" id="loginCard">
-        <p class="login-hint">Ingresa tu usuario y la clave que te compartieron.</p>
+        <h2 class="login-title">Iniciar sesión</h2>
+        <p class="login-hint">Ingresa tu usuario y la clave que te compartieron para ver y editar la quiniela.</p>
         <form id="loginForm" class="login-form">
           <label class="form-label" for="loginUsuario">Usuario</label>
           <input class="form-input" type="text" id="loginUsuario" autocomplete="username"
-                 placeholder="ej. abi" autocapitalize="none" autocorrect="off" required>
+                 placeholder="ej. abi" autocapitalize="none" autocorrect="off" spellcheck="false" required>
           <label class="form-label" for="loginPassword">Clave</label>
           <input class="form-input" type="password" id="loginPassword" autocomplete="current-password"
                  placeholder="Tu clave" required>
@@ -64,14 +48,22 @@
       </div>
     </section>
 
-    <section class="view" id="viewMiQuiniela">
+    <section class="view" id="viewPodio">
       <div class="section-header">
-        <h2>Mi Quiniela</h2>
-        <button class="btn-text" id="btnLogout" type="button">Salir</button>
+        <h2>Tabla General</h2>
       </div>
-      <div id="miQuinielaBanner" class="mi-banner"></div>
-      <div id="miQuinielaContent" class="match-list"></div>
-      <div id="miQuinielaActions" class="mi-actions"></div>
+      <div id="podioContent" class="podio-list"></div>
+    </section>
+
+    <section class="view" id="viewQuiniela">
+      <div class="section-header">
+        <h2>Quiniela</h2>
+        <span class="badge" id="playedCount">0/72</span>
+      </div>
+      <div class="person-tabs" id="personTabs"></div>
+      <div class="person-summary" id="personSummary"></div>
+      <div id="quinielaHint"></div>
+      <div id="personContent" class="match-list"></div>
     </section>
   </main>
 
@@ -85,21 +77,26 @@
       </svg>
       <span>Podio</span>
     </button>
-    <button class="nav-btn" data-view="personas">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      <span>Personas</span>
-    </button>
-    <button class="nav-btn" data-view="miquiniela" id="navMiQuiniela">
+    <button class="nav-btn" data-view="quiniela">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
       </svg>
-      <span id="navMiQuinielaLabel">Mi Quiniela</span>
+      <span>Quiniela</span>
     </button>
   </nav>
+
+  <div class="modal-overlay" id="confirmModal" hidden>
+    <div class="modal">
+      <h3 class="modal-title">Confirmar pronóstico</h3>
+      <div class="modal-body" id="modalBody"></div>
+      <p class="modal-warn">Una vez guardado, no podrás editar este pronóstico.</p>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="modalCancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="modalConfirm">Guardar</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>
