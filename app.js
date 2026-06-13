@@ -468,15 +468,11 @@ function renderPersonDetail() {
     <div class="summary-stat"><span class="summary-value">${aciertos}<small>/${jugados}</small></span><span class="summary-label">Aciertos</span></div>
   `;
 
-  const played = state.partidos.filter(m => m.golesLocal !== null).length;
-  document.getElementById('playedCount').textContent = `${played}/${state.partidos.length}`;
-
-  const editableCount = isOwn
-    ? state.partidos.filter(m => m.golesLocal === null && !savedItems[String(m.id)] && !matchStarted(m)).length
-    : 0;
-  document.getElementById('quinielaHint').innerHTML = (isOwn && editableCount > 0)
-    ? `<p class="edit-hint">Toca un marcador para capturar tu pronóstico. Tienes <strong>${editableCount}</strong> por capturar.</p>`
-    : '';
+  const playedCountEl = document.getElementById('playedCount');
+  if (playedCountEl) {
+    const played = state.partidos.filter(m => m.golesLocal !== null).length;
+    playedCountEl.textContent = `${played}/${state.partidos.length}`;
+  }
 
   document.getElementById('personContent').innerHTML = renderMatchesByDay(
     state.partidos, { isOwn, savedItems, predMap }

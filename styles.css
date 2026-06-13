@@ -286,6 +286,7 @@ body {
 
 .quiniela-sticky .section-header {
   margin-bottom: 10px;
+  justify-content: flex-end;
 }
 
 /* Person tabs */
@@ -302,9 +303,9 @@ body {
 
 .person-tab {
   flex-shrink: 0;
-  padding: 8px 16px;
+  padding: 11px 20px;
   border: 2px solid var(--border);
-  border-radius: 20px;
+  border-radius: 22px;
   background: var(--card);
   font-size: 0.85rem;
   font-weight: 600;
