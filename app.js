@@ -1,3 +1,5 @@
+import { formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX } from './fixtures-data.js';
+
 // ============================================================
 // CONFIGURACIÓN — Firebase
 // ============================================================
@@ -14,6 +16,8 @@ export const CONFIG = {
 
 const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
+const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
+const MATCH_LOCK_INTERVAL_MS = 30000;
 
 // ============================================================
 // Firebase
@@ -58,7 +62,71 @@ let state = {
   firebaseReady: false,
   editingMatchId: null,
   pendingSave: null,
+  clockOffset: 0,
 };
+
+let matchLockTimer = null;
+
+// ============================================================
+// Hora de referencia (internet)
+// ============================================================
+function nowMs() {
+  return Date.now() + state.clockOffset;
+}
+
+async function syncInternetClock() {
+  try {
+    const res = await fetch(CLOCK_SYNC_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('No se pudo obtener la hora');
+    const data = await res.json();
+    const serverMs = typeof data.unixtime === 'number'
+      ? data.unixtime * 1000
+      : new Date(data.datetime).getTime();
+    state.clockOffset = serverMs - Date.now();
+    return true;
+  } catch (err) {
+    console.warn('Hora de internet no disponible, usando reloj local:', err);
+    state.clockOffset = 0;
+    return false;
+  }
+}
+
+function parsePartidoFecha(raw) {
+  if (!raw) return null;
+  if (raw.toDate) return raw.toDate();
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function matchStarted(m) {
+  if (!m?.fecha) return false;
+  return nowMs() >= m.fecha.getTime();
+}
+
+function formatMatchDate(d) {
+  if (!d) return 'Fecha por definir';
+  return formatDateCDMX(d);
+}
+
+function matchDatetimeHTML(m) {
+  return `<div class="match-datetime">${formatMatchDate(m.fecha)}</div>`;
+}
+
+function startMatchLockTimer() {
+  if (matchLockTimer) return;
+  matchLockTimer = setInterval(() => {
+    if (!state.session) return;
+    const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
+    if (!quinielaActive || state.editingMatchId !== null) return;
+    renderPersonDetail();
+  }, MATCH_LOCK_INTERVAL_MS);
+}
+
+function stopMatchLockTimer() {
+  if (!matchLockTimer) return;
+  clearInterval(matchLockTimer);
+  matchLockTimer = null;
+}
 
 // ============================================================
 // Sesión (localStorage)
@@ -110,6 +178,7 @@ async function login(usuario, password) {
 
 function logout() {
   teardownListeners();
+  stopMatchLockTimer();
   clearSession();
   state.selectedPerson = null;
   state.editingMatchId = null;
@@ -206,6 +275,7 @@ function subscribeFirestore() {
         visitante: m.visitante,
         golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
         golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
+        fecha: parsePartidoFecha(m.fecha),
       }));
       maybeUpdate();
     }, err => { console.error(err); setStatus('Error al leer partidos', 'error'); })
@@ -237,6 +307,8 @@ async function saveSingleMatch(matchId, gl, gv) {
   if (!state.session) throw new Error('Inicia sesión');
   if (!db) throw new Error('Sin conexión');
 
+  await syncInternetClock();
+
   const clave = state.session.clave;
   const meta = state.pronosticosMeta[clave] || { items: {} };
   const saved = meta.items || {};
@@ -245,6 +317,7 @@ async function saveSingleMatch(matchId, gl, gv) {
 
   const m = state.partidos.find(x => x.id === matchId);
   if (!m || m.golesLocal !== null) throw new Error('Ese partido ya no se puede pronosticar');
+  if (matchStarted(m)) throw new Error('Ya cerró el tiempo para pronosticar este partido');
 
   const { doc, setDoc, serverTimestamp } = firestoreFns;
   await setDoc(doc(db, 'pronosticos', clave), {
@@ -399,69 +472,110 @@ function renderPersonDetail() {
   document.getElementById('playedCount').textContent = `${played}/${state.partidos.length}`;
 
   const editableCount = isOwn
-    ? state.partidos.filter(m => m.golesLocal === null && !savedItems[String(m.id)]).length
+    ? state.partidos.filter(m => m.golesLocal === null && !savedItems[String(m.id)] && !matchStarted(m)).length
     : 0;
   document.getElementById('quinielaHint').innerHTML = (isOwn && editableCount > 0)
     ? `<p class="edit-hint">Toca un marcador para capturar tu pronóstico. Tienes <strong>${editableCount}</strong> por capturar.</p>`
     : '';
 
-  document.getElementById('personContent').innerHTML = state.partidos.map(m => {
-    const isPlayed = m.golesLocal !== null;
-    const saved = savedItems[String(m.id)];
-    const pr = predMap[m.id];
-    const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
-
-    // Editable: es tu propia quiniela, partido no jugado y sin pronóstico guardado
-    if (isOwn && !isPlayed && !saved) {
-      return `
-        <div class="match-card form-card editable-card" data-match-id="${m.id}">
-          ${teams}
-          <div class="form-score-row">
-            <div class="form-score-field">
-              <label class="form-score-label">${splitFlag(m.local).name || 'Local'}</label>
-              <input class="form-score-input" type="number" min="0" max="20" step="1" name="l_${m.id}" inputmode="numeric" placeholder="-">
-            </div>
-            <span class="form-score-sep">—</span>
-            <div class="form-score-field">
-              <label class="form-score-label">${splitFlag(m.visitante).name || 'Visitante'}</label>
-              <input class="form-score-input" type="number" min="0" max="20" step="1" name="v_${m.id}" inputmode="numeric" placeholder="-">
-            </div>
-          </div>
-          <div class="edit-actions" hidden>
-            <button type="button" class="btn-secondary btn-cancel-edit">Cancelar</button>
-            <button type="button" class="btn-primary btn-save-edit">Guardar</button>
-          </div>
-        </div>`;
-    }
-
-    // Solo lectura
-    const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
-    const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : null;
-    const predText = hasPred ? `${pr.golesLocal} - ${pr.golesVisitante}` : '—';
-    const realText = isPlayed ? `${m.golesLocal} - ${m.golesVisitante}` : '—';
-    let stateClass = 'state-pending';
-    if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
-    let ptsHTML;
-    if (isPlayed) {
-      ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
-    } else if (saved) {
-      ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
-    } else {
-      ptsHTML = `<span class="match-points pts-pending">Por jugar</span>`;
-    }
-
-    return `
-      <div class="match-card ${stateClass}">
-        ${teams}
-        <div class="score-grid">
-          <div class="score-box pred"><div class="score-label">Pronóstico</div><div class="score-value ${hasPred ? '' : 'empty'}">${predText}</div></div>
-          <div class="score-box real"><div class="score-label">Resultado</div><div class="score-value ${isPlayed ? '' : 'empty'}">${realText}</div></div>
-        </div>
-        <div class="match-footer">${ptsHTML}</div>
-      </div>`;
-  }).join('');
+  document.getElementById('personContent').innerHTML = renderMatchesByDay(
+    state.partidos, { isOwn, savedItems, predMap }
+  );
 
   attachEditingListeners();
+}
+
+function buildMatchCard(m, { isOwn, savedItems, predMap }) {
+  const isPlayed = m.golesLocal !== null;
+  const saved = savedItems[String(m.id)];
+  const pr = predMap[m.id];
+  const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+
+  // Editable: es tu propia quiniela, partido no jugado, sin pronóstico guardado y antes del kickoff
+  if (isOwn && !isPlayed && !saved && !matchStarted(m)) {
+    return `
+      <div class="match-card form-card editable-card" data-match-id="${m.id}">
+        ${matchDatetimeHTML(m)}
+        ${teams}
+        <div class="form-score-row">
+          <div class="form-score-field">
+            <input class="form-score-input" type="number" min="0" max="20" step="1" name="l_${m.id}" inputmode="numeric" placeholder="-">
+          </div>
+          <span class="form-score-sep">—</span>
+          <div class="form-score-field">
+            <input class="form-score-input" type="number" min="0" max="20" step="1" name="v_${m.id}" inputmode="numeric" placeholder="-">
+          </div>
+        </div>
+        <div class="edit-actions" hidden>
+          <button type="button" class="btn-secondary btn-cancel-edit">Cancelar</button>
+          <button type="button" class="btn-primary btn-save-edit">Guardar</button>
+        </div>
+      </div>`;
+  }
+
+  // Solo lectura
+  const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
+  const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : null;
+  const predL = hasPred ? pr.golesLocal : '–';
+  const predV = hasPred ? pr.golesVisitante : '–';
+  const realL = isPlayed ? m.golesLocal : '–';
+  const realV = isPlayed ? m.golesVisitante : '–';
+  let stateClass = 'state-pending';
+  if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
+  let ptsHTML;
+  if (isPlayed) {
+    ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
+  } else if (saved) {
+    ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
+  } else {
+    ptsHTML = `<span class="match-points pts-pending">Por jugar</span>`;
+  }
+
+  return `
+    <div class="match-card ${stateClass}">
+      ${matchDatetimeHTML(m)}
+      ${teams}
+      <div class="score-rows">
+        <div class="score-row pred">
+          <span class="score-num ${hasPred ? '' : 'empty'}">${predL}</span>
+          <span class="score-row-label">Pronóstico</span>
+          <span class="score-num ${hasPred ? '' : 'empty'}">${predV}</span>
+        </div>
+        <div class="score-row real">
+          <span class="score-num ${isPlayed ? '' : 'empty'}">${realL}</span>
+          <span class="score-row-label">Resultado</span>
+          <span class="score-num ${isPlayed ? '' : 'empty'}">${realV}</span>
+        </div>
+      </div>
+      <div class="match-footer">${ptsHTML}</div>
+    </div>`;
+}
+
+function renderMatchesByDay(partidos, ctx) {
+  const groups = [];
+  const indexByKey = new Map();
+  const SIN_FECHA = '__sin_fecha__';
+
+  for (const m of partidos) {
+    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({
+        key,
+        label: m.fecha ? formatDayHeaderCDMX(m.fecha) : 'Fecha por definir',
+        matches: [],
+      });
+    }
+    groups[indexByKey.get(key)].matches.push(m);
+  }
+
+  return groups.map(g => `
+    <div class="day-group">
+      <h3 class="day-header">${g.label}</h3>
+      <div class="day-matches">
+        ${g.matches.map(m => buildMatchCard(m, ctx)).join('')}
+      </div>
+    </div>`).join('');
 }
 
 // ============================================================
@@ -642,6 +756,7 @@ async function handleLogin(e) {
 
   try {
     if (!state.firebaseReady) await ensureFirebase();
+    await syncInternetClock();
     await login(
       document.getElementById('loginUsuario').value,
       document.getElementById('loginPassword').value
@@ -669,6 +784,7 @@ async function reconnect() {
   setStatus('Reconectando...');
   try {
     if (!state.firebaseReady) await ensureFirebase();
+    await syncInternetClock();
     subscribeFirestore();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
   } catch (err) {
@@ -695,6 +811,8 @@ async function bootstrap() {
 
   try {
     await ensureFirebase();
+    await syncInternetClock();
+    startMatchLockTimer();
   } catch (err) {
     console.error(err);
     setStatus('Sin conexión con el servidor', 'error');

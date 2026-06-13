@@ -6,7 +6,8 @@ Sitio web móvil gratuito para la quiniela del Mundial 2026. Los participantes c
 
 - **Login obligatorio**: sin iniciar sesión no se ve nada (ni podio ni resultados). Usuario en minúsculas + clave; el navegador recuerda la sesión
 - **Podio**: ranking en vivo con medallas y manejo de empates
-- **Quiniela**: pronósticos de cada participante vs. resultados reales. En tu propia pestaña capturas tus pronósticos **uno por uno**; al guardar cada uno (con confirmación) queda bloqueado
+- **Quiniela**: pronósticos de cada participante vs. resultados reales. En tu propia pestaña capturas tus pronósticos **uno por uno**; al guardar cada uno (con confirmación) queda bloqueado. **Se cierra la captura al iniciar el partido** (hora del centro de México, verificada con hora de internet)
+- **Fecha/hora en cada partido**: cada tarjeta muestra cuándo es el partido en una franja superior
 - **Tiempo real**: cambios en Firebase se ven al instante (sin refrescar manualmente)
 
 ## Reglas de puntuación
@@ -77,6 +78,23 @@ Opcional: **Importar pronósticos existentes** si ya tienes datos del Excel (que
 
 ---
 
+## Paso 3b: Cargar fechas/horas de partidos (seed masivo)
+
+Los partidos necesitan un campo `fecha` (Timestamp) para bloquear pronósticos al iniciar el partido.
+
+1. **Temporalmente** en Reglas de Firestore, cambia `partidos` a:
+   ```
+   allow write: if request.auth != null;
+   ```
+2. Abre `https://tu-sitio/seed-fechas.html` (o `http://localhost:8080/seed-fechas.html`).
+3. Clic en **Previsualizar** — revisa fechas y, si aplica, correcciones de equipos (marcadas en amarillo).
+4. Clic en **Escribir en Firestore** — escribe fechas para todos los partidos que coinciden; corrige equipos solo en los que no existen en el calendario FIFA (ej. rivales imposibles en fase de grupos).
+5. **Restaura** las reglas originales de `firestore.rules`.
+
+No necesitas capturar fechas una por una en la consola.
+
+---
+
 ## Paso 4: Crear usuarios (claves de login)
 
 En Firebase Console → **Firestore** → crea la colección `usuarios` con un documento por persona.
@@ -120,7 +138,7 @@ clave: "Abi"
 3. Van a la pestaña **Quiniela** → su propia pestaña (marcada con "(tú)").
 4. Tocan el marcador de un partido para capturarlo. Aparecen los botones **Guardar** y **Cancelar** para ese partido (solo se puede editar uno a la vez).
 5. Al **Guardar** sale un modal de confirmación. Si confirman, ese pronóstico se guarda y queda bloqueado. Si cancelan, se borra lo escrito.
-6. Repiten partido por partido. Los ya jugados no se pueden pronosticar.
+6. Repiten partido por partido. Los ya jugados no se pueden pronosticar. **Si ya pasó la hora de inicio del partido, tampoco se puede capturar** (aunque aún no tenga resultado).
 
 ### Tú (admin) — desde la consola de Firebase
 
@@ -146,17 +164,17 @@ Quiniela/
 ├── index.html          # Página principal
 ├── styles.css          # Estilos
 ├── app.js              # Lógica + config Firebase
-├── seed.html           # Importación inicial a Firestore
+├── fixtures-data.js    # Calendario oficial (72 partidos) para seed
+├── seed-fechas.html    # Carga masiva de fechas a Firestore
 ├── firestore.rules     # Reglas de seguridad (copiar a Firebase)
-├── data/
-│   └── quiniela.json   # Datos para seed / demo local
 └── README.md
 ```
 
 ## Modelo de datos (Firestore)
 
 ```
-partidos/{id}        → { id, local, visitante, golesLocal, golesVisitante }
+partidos/{id}        → { id, local, visitante, golesLocal, golesVisitante, fecha }
+                       (fecha = Timestamp de inicio del partido; hora absoluta)
 participantes/{clave} → { nombreVisible, orden }
 usuarios/{usuario}   → { password, clave }
 pronosticos/{clave}  → { items: { "1": {l,v}, ... }, actualizado }
