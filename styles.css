@@ -1,21 +1,35 @@
 :root {
-  --green-dark: #1a472a;
-  --green-mid: #2d6a3f;
+  /* World Cup 2026 brand palette */
+  --ink: #14121f;
+  --ink-soft: #221f33;
+  --primary: #e5121e;
+  --primary-dark: #c20f19;
+  --wc-red: #e5121e;
+  --wc-orange: #ff7a00;
+  --wc-lime: #b5d400;
+  --wc-teal: #14b8a6;
+  --wc-blue: #1e6fd9;
+  --wc-purple: #6c4fd8;
+  --wc-rainbow: linear-gradient(90deg, #e5121e 0%, #ff7a00 20%, #b5d400 40%, #14b8a6 60%, #1e6fd9 80%, #6c4fd8 100%);
+
+  /* Semantic / theme (kept names for compatibility) */
+  --green-dark: #14121f;
+  --green-mid: #e5121e;
   --green-light: #e8f5e9;
-  --gold: #ffd700;
+  --gold: #ffc83d;
   --silver: #c0c0c0;
   --bronze: #cd7f32;
-  --bg: #f5f7f5;
+  --bg: #f4f5f8;
   --card: #ffffff;
-  --text: #1a1a1a;
+  --text: #16151c;
   --text-muted: #6b7280;
   --border: #e5e7eb;
   --success: #16a34a;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --radius: 12px;
+  --radius: 14px;
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.1);
+  --shadow-md: 0 6px 18px rgba(20,18,31,0.12);
   --nav-height: 64px;
   --header-height: 56px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -46,26 +60,30 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: var(--green-dark);
+  background: var(--ink);
   color: white;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   padding-top: max(12px, env(safe-area-inset-top));
+  border-bottom: 4px solid transparent;
+  border-image: var(--wc-rainbow) 1;
   box-shadow: var(--shadow-md);
 }
 
 .header h1 {
-  font-size: 1.1rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
 }
 
 .subtitle {
   font-size: 0.75rem;
-  opacity: 0.8;
-  margin-top: 1px;
+  opacity: 0.82;
+  margin-top: 2px;
+  font-weight: 500;
 }
 
 .btn-refresh {
@@ -142,16 +160,30 @@ body {
 }
 
 .section-header h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--green-dark);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+}
+
+.section-header h2::before {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 20px;
+  border-radius: 3px;
+  background: var(--wc-rainbow);
+  margin-right: 9px;
 }
 
 .badge {
   font-size: 1rem;
-  font-weight: 700;
-  background: var(--green-light);
-  color: var(--green-dark);
+  font-weight: 800;
+  background: var(--ink);
+  color: #fff;
   padding: 5px 14px;
   border-radius: 20px;
 }
@@ -222,7 +254,7 @@ body {
 .podio-points {
   font-size: 1.4rem;
   font-weight: 800;
-  color: var(--green-dark);
+  color: var(--ink);
 }
 
 .podio-points span {
@@ -260,9 +292,9 @@ body {
 }
 
 .person-tab.active {
-  background: var(--green-dark);
+  background: var(--ink);
   color: white;
-  border-color: var(--green-dark);
+  border-color: var(--ink);
 }
 
 .person-summary {
@@ -421,6 +453,24 @@ body {
   font-weight: 600;
 }
 
+/* Result box styled like a TV scoreboard */
+.score-box.real {
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.score-box.real .score-label {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.score-box.real .score-value {
+  color: #fff;
+}
+
+.score-box.real .score-value.empty {
+  color: rgba(255, 255, 255, 0.45);
+}
+
 .match-footer {
   display: flex;
   justify-content: center;
@@ -456,7 +506,7 @@ body {
 
 .match-points.pts-saved {
   background: var(--green-light);
-  color: var(--green-dark);
+  color: #15803d;
 }
 
 /* Edición por partido */
@@ -472,8 +522,8 @@ body {
 }
 
 .editable-card.editing {
-  border: 2px solid var(--green-mid);
-  box-shadow: 0 0 0 3px rgba(45, 106, 63, 0.12), var(--shadow);
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 0 3px rgba(229, 18, 30, 0.12), var(--shadow);
 }
 
 .editable-card.locked {
@@ -605,6 +655,7 @@ body {
 }
 
 .nav-btn {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -623,7 +674,19 @@ body {
 }
 
 .nav-btn.active {
-  color: var(--green-dark);
+  color: var(--primary);
+}
+
+.nav-btn.active::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40%;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: var(--wc-rainbow);
 }
 
 .nav-btn svg {
@@ -646,7 +709,7 @@ body {
   width: 32px;
   height: 32px;
   border: 3px solid var(--border);
-  border-top-color: var(--green-dark);
+  border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 12px;
@@ -699,17 +762,22 @@ body {
 .login-card {
   background: var(--card);
   border-radius: var(--radius);
-  padding: 24px 20px;
-  box-shadow: var(--shadow);
+  padding: 26px 20px 24px;
+  box-shadow: var(--shadow-md);
   max-width: 380px;
-  margin: 24px auto 0;
+  margin: 28px auto 0;
+  border-top: 5px solid transparent;
+  border-image: var(--wc-rainbow) 1;
+  overflow: hidden;
 }
 
 .login-title {
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--green-dark);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--ink);
   margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
 }
 
 .login-hint {
@@ -746,7 +814,7 @@ body {
 
 .form-input:focus {
   outline: none;
-  border-color: var(--green-mid);
+  border-color: var(--primary);
 }
 
 .login-error, .save-error {
@@ -761,12 +829,17 @@ body {
   padding: 14px;
   border: none;
   border-radius: 10px;
-  background: var(--green-dark);
+  background: var(--primary);
   color: white;
   font-size: 1rem;
-  font-weight: 700;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--primary-dark);
 }
 
 .btn-primary:disabled {
@@ -916,7 +989,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--green-dark);
+  color: #15803d;
   background: var(--green-light);
   padding: 4px 10px;
   border-radius: 20px;
