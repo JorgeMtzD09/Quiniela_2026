@@ -32,6 +32,14 @@
   --shadow-md: 0 6px 18px rgba(20,18,31,0.12);
   --nav-height: 64px;
   --header-height: 56px;
+  --header-stack-height: calc(
+    max(12px, env(safe-area-inset-top, 0px))
+    + 1.15rem * 1.5
+    + 0.75rem * 1.5
+    + 2px
+    + 12px
+    + 4px
+  );
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -265,12 +273,27 @@ body {
   text-align: right;
 }
 
+/* Quiniela sticky bar (title + participant tabs) */
+.quiniela-sticky {
+  position: sticky;
+  top: var(--header-stack-height);
+  z-index: 50;
+  background: var(--bg);
+  margin: -12px -16px 12px;
+  padding: 12px 16px 10px;
+  box-shadow: 0 8px 12px -10px rgba(20, 18, 31, 0.25);
+}
+
+.quiniela-sticky .section-header {
+  margin-bottom: 10px;
+}
+
 /* Person tabs */
 .person-tabs {
   display: flex;
   gap: 6px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  padding-bottom: 2px;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
 }
