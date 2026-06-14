@@ -785,7 +785,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
 
   // Solo lectura
   const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
-  const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : null;
+  const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
   const realL = isPlayed ? m.golesLocal : '–';
