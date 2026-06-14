@@ -2,10 +2,15 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Partidos: solo lectura pública (marcadores los editas tú en la consola)
+    // Partidos: lectura pública. Cualquier sesión autenticada puede actualizar,
+    // pero solo los campos de marcador (golesLocal/golesVisitante). El control de
+    // quién es admin se hace en la app (campo admin en usuarios).
     match /partidos/{id} {
       allow read: if true;
-      allow write: if false;
+      allow update: if request.auth != null
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['golesLocal', 'golesVisitante']);
+      allow create, delete: if false;
     }
 
     // Participantes: solo lectura pública

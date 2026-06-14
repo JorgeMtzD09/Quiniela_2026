@@ -9,6 +9,7 @@ Sitio web móvil gratuito para la quiniela del Mundial 2026. Los participantes c
 - **Quiniela**: pronósticos de cada participante vs. resultados reales. En tu propia pestaña capturas tus pronósticos **uno por uno**; al guardar cada uno (con confirmación) queda bloqueado. **Se cierra la captura al iniciar el partido** (hora del centro de México, verificada con hora de internet)
 - **Fecha/hora en cada partido**: cada tarjeta muestra cuándo es el partido en una franja superior
 - **Tiempo real**: cambios en Firebase se ven al instante (sin refrescar manualmente)
+- **Admin**: usuario especial que ve solo la pantalla para capturar resultados finales de los partidos
 
 ## Reglas de puntuación
 
@@ -57,9 +58,10 @@ USE_LOCAL_FALLBACK: false,
 En Firebase Console → **Firestore** → **Reglas**, pega el contenido de [firestore.rules](firestore.rules) y publica.
 
 Resumen:
-- `partidos`, `participantes`: solo lectura (tú editas marcadores en la consola)
+- `partidos`: lectura pública; cualquier sesión autenticada puede actualizar, pero **solo** los campos `golesLocal` y `golesVisitante` (no equipos, fechas, ni crear/borrar). En la app, solo el usuario con `admin: true` ve la pantalla para hacerlo.
+- `participantes`: solo lectura
 - `usuarios`: lectura individual para login (no se listan todos)
-- `pronosticos`: lectura pública; se pueden **agregar** pronósticos nuevos (uno por uno), pero los ya guardados **no se pueden modificar ni borrar** desde el cliente (solo el admin)
+- `pronosticos`: lectura pública; se pueden **agregar** pronósticos nuevos (uno por uno), pero los ya guardados **no se pueden modificar ni borrar** desde el cliente
 
 ---
 
@@ -120,6 +122,25 @@ clave: "Abi"
 
 ---
 
+## Paso 4b: Crear usuario admin
+
+El admin es **un usuario más** en `usuarios`, igual que los demás (usuario + `password`), solo que con la bandera `admin: true`. Usa el mismo formulario de login, pero ve únicamente la pantalla para capturar resultados.
+
+En **Firestore** → colección `usuarios` → crea el documento del admin (ID en minúsculas, ej. `admin`):
+
+```
+password: "tu-clave-secreta"
+admin: true
+clave: "Admin"
+```
+
+**Notas:**
+- `password`: la clave que escribes en el login (solo tú la conoces).
+- `admin: true`: lo que activa la pantalla de captura de resultados.
+- El admin **no** debe estar en `participantes` ni en `pronosticos` (no juega la quiniela).
+
+---
+
 ## Paso 5: Publicar en GitHub Pages
 
 1. Sube el proyecto a un repo de GitHub.
@@ -140,14 +161,14 @@ clave: "Abi"
 5. Al **Guardar** sale un modal de confirmación. Si confirman, ese pronóstico se guarda y queda bloqueado. Si cancelan, se borra lo escrito.
 6. Repiten partido por partido. Los ya jugados no se pueden pronosticar. **Si ya pasó la hora de inicio del partido, tampoco se puede capturar** (aunque aún no tenga resultado).
 
-### Tú (admin) — desde la consola de Firebase
+### Tú (admin) — capturar resultados desde la app
 
-**Capturar marcador de un partido:**
-1. Firestore → `partidos` → abre el documento (ej. `1` para México vs Sudáfrica).
-2. Edita `golesLocal` y `golesVisitante` (números).
-3. Guarda. El podio se actualiza al instante para todos.
+1. Abre el sitio e inicia sesión con tu usuario admin (ej. `admin` + tu `password`).
+2. Verás la pantalla **Capturar resultados** con todos los partidos agrupados por día.
+3. Escribe `golesLocal` y `golesVisitante` y pulsa **Guardar resultado**.
+4. El podio se actualiza al instante para todos los participantes.
 
-**Liberar un pronóstico de alguien** (caso extraordinario):
+**Liberar un pronóstico de alguien** (caso extraordinario, desde la consola de Firebase):
 1. Firestore → `pronosticos` → abre el documento (ej. `Coque`).
 2. En el campo `items`, borra la entrada del partido que quieras liberar (ej. la clave `"5"`).
 3. Esa persona podrá volver a capturar y guardar ese partido. Para liberar todos, borra el documento completo.
@@ -173,12 +194,13 @@ Quiniela/
 ## Modelo de datos (Firestore)
 
 ```
-partidos/{id}        → { id, local, visitante, golesLocal, golesVisitante, fecha }
-                       (fecha = Timestamp de inicio del partido; hora absoluta)
+partidos/{id}         → { id, local, visitante, golesLocal, golesVisitante, fecha }
+                        (fecha = Timestamp; golesLocal null = partido pendiente)
 participantes/{clave} → { nombreVisible, orden }
-usuarios/{usuario}   → { password, clave }
-pronosticos/{clave}  → { items: { "1": {l,v}, ... }, actualizado }
-                       (cada partido presente en items = pronóstico bloqueado)
+usuarios/{usuario}    → { password, clave }                (participantes)
+                        → { password, admin: true, clave } (admin)
+pronosticos/{clave}   → { items: { "1": {l,v}, ... }, actualizado }
+                        (cada partido presente en items = pronóstico bloqueado)
 ```
 
 ---
@@ -191,6 +213,11 @@ pronosticos/{clave}  → { items: { "1": {l,v}, ... }, actualizado }
 **Error al guardar pronósticos**
 - Verifica que **Anonymous Auth** esté activado.
 - Verifica las reglas de `firestore.rules` publicadas.
+
+**Error al guardar resultados (admin)**
+- Verifica que **Anonymous Auth** esté activado.
+- Verifica que el documento `usuarios/{admin}` tenga `admin: true` y `password`.
+- Verifica las reglas de `firestore.rules` publicadas (bloque `partidos`).
 
 **No aparecen partidos**
 - Ejecuta `seed.html` una vez (con reglas temporales de escritura).

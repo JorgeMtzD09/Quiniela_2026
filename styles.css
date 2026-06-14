@@ -63,6 +63,10 @@ body {
   padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 8px);
 }
 
+body.admin-mode {
+  padding-bottom: calc(var(--safe-bottom) + 8px);
+}
+
 /* Header */
 .header {
   position: sticky;
@@ -1115,6 +1119,98 @@ body {
 
 .btn-save {
   margin-top: 0;
+}
+
+/* Admin — captura de resultados */
+.editable-admin-card {
+  border: 1px solid var(--border);
+  transition: opacity 0.15s, border-color 0.15s;
+}
+
+.editable-admin-card.admin-played {
+  border-color: #abefc6;
+  background: #f3fbf5;
+}
+
+.editable-admin-card.admin-played .match-datetime {
+  background: #d1fae5;
+  border-bottom-color: #abefc6;
+}
+
+.editable-admin-card.editing {
+  border: 2px solid var(--wc-blue);
+  box-shadow: 0 0 0 3px rgba(30, 111, 217, 0.15), var(--shadow);
+}
+
+.editable-admin-card.editing .match-datetime {
+  background: rgba(30, 111, 217, 0.1);
+  border-bottom-color: rgba(30, 111, 217, 0.25);
+  color: var(--wc-blue);
+}
+
+.editable-admin-card.locked {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.admin-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-reset-admin {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 5px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-reset-admin:active {
+  background: #fef2f2;
+  color: var(--danger);
+  border-color: #fecaca;
+}
+
+/* Toast de feedback */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + var(--safe-bottom));
+  transform: translateX(-50%) translateY(20px);
+  background: var(--success);
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 24px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s, transform 0.25s;
+  max-width: 90%;
+  text-align: center;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toast.toast-error {
+  background: var(--danger);
 }
 
 /* Responsive */

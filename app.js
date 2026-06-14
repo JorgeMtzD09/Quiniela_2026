@@ -62,6 +62,8 @@ let state = {
   firebaseReady: false,
   editingMatchId: null,
   pendingSave: null,
+  adminEditingId: null,
+  adminPendingSave: null,
   clockOffset: 0,
 };
 
@@ -152,8 +154,13 @@ function clearSession() {
 
 function displayName() {
   if (!state.session) return '';
+  if (state.session.admin) return state.session.nombreVisible || 'Admin';
   const p = state.participantes.find(x => x.clave === state.session.clave);
   return p ? p.nombreVisible : (state.session.nombreVisible || state.session.clave);
+}
+
+function isAdminSession() {
+  return !!(state.session && state.session.admin);
 }
 
 // ============================================================
@@ -172,6 +179,11 @@ async function login(usuario, password) {
   const data = snap.data();
   if (data.password !== password) throw new Error('Clave incorrecta');
 
+  if (data.admin === true) {
+    saveSession({ usuario: u, admin: true, nombreVisible: data.clave || 'Admin' });
+    return state.session;
+  }
+
   saveSession({ usuario: u, clave: data.clave, nombreVisible: data.clave });
   return state.session;
 }
@@ -189,6 +201,7 @@ function logout() {
   state.pronosticosMeta = {};
   state.podio = [];
   closeModal();
+  document.body.classList.remove('admin-mode');
   updateHeaderSession();
   applyAuthGate();
 }
@@ -298,6 +311,267 @@ function subscribeFirestore() {
       maybeUpdate();
     }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
   );
+}
+
+function parsePartidoDoc(d) {
+  const m = d.data();
+  return {
+    docId: d.id,
+    id: Number(m.id ?? d.id),
+    local: m.local,
+    visitante: m.visitante,
+    golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
+    golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
+    fecha: parsePartidoFecha(m.fecha),
+  };
+}
+
+function subscribeAdmin() {
+  if (!db) return;
+  teardownListeners();
+  const { collection, onSnapshot, query, orderBy } = firestoreFns;
+
+  unsubscribers.push(
+    onSnapshot(query(collection(db, 'partidos'), orderBy('id')), snap => {
+      state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
+      if (state.adminEditingId === null) renderAdmin();
+      setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
+    }, err => {
+      console.error(err);
+      setStatus('Error al leer partidos', 'error');
+    })
+  );
+}
+
+async function saveMatchResult(docId, gl, gv) {
+  if (!isAdminSession()) throw new Error('Sin permisos de admin');
+  if (!db) throw new Error('Sin conexión');
+
+  const { doc, updateDoc } = firestoreFns;
+  await updateDoc(doc(db, 'partidos', docId), {
+    golesLocal: gl,
+    golesVisitante: gv,
+  });
+}
+
+function buildAdminMatchCard(m) {
+  const isPlayed = m.golesLocal !== null;
+  const glVal = m.golesLocal != null ? m.golesLocal : '';
+  const gvVal = m.golesVisitante != null ? m.golesVisitante : '';
+  const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+  const statusHTML = isPlayed
+    ? `<span class="match-points pts-saved">Resultado: ${m.golesLocal} - ${m.golesVisitante}</span>`
+    : `<span class="match-points pts-pending">Sin resultado</span>`;
+
+  return `
+    <div class="match-card form-card editable-admin-card ${isPlayed ? 'admin-played' : 'admin-pending'}" data-doc-id="${m.docId}">
+      ${matchDatetimeHTML(m)}
+      ${teams}
+      <div class="form-score-row">
+        <div class="form-score-field">
+          <input class="form-score-input admin-score-input" type="number" min="0" max="20" step="1"
+                 name="admin_l_${m.docId}" inputmode="numeric" placeholder="-" value="${glVal}">
+        </div>
+        <span class="form-score-sep">—</span>
+        <div class="form-score-field">
+          <input class="form-score-input admin-score-input" type="number" min="0" max="20" step="1"
+                 name="admin_v_${m.docId}" inputmode="numeric" placeholder="-" value="${gvVal}">
+        </div>
+      </div>
+      <div class="admin-footer">
+        ${statusHTML}
+        ${isPlayed ? '<button type="button" class="btn-reset-admin" title="Dejar el partido sin resultado">Restaurar</button>' : ''}
+      </div>
+      <div class="edit-actions" hidden>
+        <button type="button" class="btn-secondary btn-cancel-admin">Cancelar</button>
+        <button type="button" class="btn-primary btn-save-admin">Guardar</button>
+      </div>
+    </div>`;
+}
+
+function renderAdminMatchesByDay(partidos) {
+  const groups = [];
+  const indexByKey = new Map();
+  const SIN_FECHA = '__sin_fecha__';
+
+  for (const m of partidos) {
+    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({
+        key,
+        label: m.fecha ? formatDayHeaderCDMX(m.fecha) : 'Fecha por definir',
+        matches: [],
+      });
+    }
+    groups[indexByKey.get(key)].matches.push(m);
+  }
+
+  return groups.map(g => `
+    <div class="day-group">
+      <h3 class="day-header">${g.label}</h3>
+      <div class="day-matches">
+        ${g.matches.map(m => buildAdminMatchCard(m)).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function validateScoreInputs(lRaw, vRaw) {
+  if (lRaw === '' || vRaw === '') {
+    return { error: 'Escribe ambos marcadores antes de guardar.' };
+  }
+  const gl = Number(lRaw);
+  const gv = Number(vRaw);
+  if (!Number.isInteger(gl) || !Number.isInteger(gv) || gl < 0 || gv < 0 || gl > 20 || gv > 20) {
+    return { error: 'Los goles deben ser números enteros entre 0 y 20.' };
+  }
+  return { gl, gv };
+}
+
+function attachAdminListeners() {
+  document.querySelectorAll('.editable-admin-card').forEach(card => {
+    const docId = card.dataset.docId;
+    card.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('focus', () => enterAdminEditMode(docId));
+    });
+    const cancel = card.querySelector('.btn-cancel-admin');
+    const save = card.querySelector('.btn-save-admin');
+    const reset = card.querySelector('.btn-reset-admin');
+    if (cancel) cancel.addEventListener('click', () => exitAdminEditMode(true));
+    if (save) save.addEventListener('click', () => openAdminConfirm(docId));
+    if (reset) reset.addEventListener('click', () => openAdminResetConfirm(docId));
+  });
+}
+
+function enterAdminEditMode(docId) {
+  if (state.adminEditingId === docId) return;
+  if (state.adminEditingId !== null) return;
+  state.adminEditingId = docId;
+  document.querySelectorAll('.editable-admin-card').forEach(card => {
+    const actions = card.querySelector('.edit-actions');
+    if (card.dataset.docId === docId) {
+      card.classList.add('editing');
+      if (actions) actions.hidden = false;
+    } else {
+      card.classList.add('locked');
+      card.querySelectorAll('input').forEach(i => { i.disabled = true; });
+    }
+  });
+}
+
+function exitAdminEditMode(restore) {
+  const docId = state.adminEditingId;
+  state.adminEditingId = null;
+  document.querySelectorAll('.editable-admin-card').forEach(card => {
+    card.classList.remove('locked', 'editing');
+    card.querySelectorAll('input').forEach(i => { i.disabled = false; });
+    const actions = card.querySelector('.edit-actions');
+    if (actions) actions.hidden = true;
+  });
+  if (restore && docId != null) {
+    const m = state.partidos.find(x => x.docId === docId);
+    const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
+    if (card && m) {
+      const lInp = card.querySelector(`input[name="admin_l_${docId}"]`);
+      const vInp = card.querySelector(`input[name="admin_v_${docId}"]`);
+      if (lInp) lInp.value = m.golesLocal != null ? m.golesLocal : '';
+      if (vInp) vInp.value = m.golesVisitante != null ? m.golesVisitante : '';
+    }
+  }
+}
+
+function openAdminConfirm(docId) {
+  const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
+  if (!card) return;
+  const lRaw = card.querySelector(`input[name="admin_l_${docId}"]`).value;
+  const vRaw = card.querySelector(`input[name="admin_v_${docId}"]`).value;
+
+  const validated = validateScoreInputs(lRaw, vRaw);
+  if (validated.error) { alert(validated.error); return; }
+
+  const m = state.partidos.find(x => x.docId === docId);
+  state.adminPendingSave = { docId, gl: validated.gl, gv: validated.gv };
+  const titleEl = document.querySelector('#confirmModal .modal-title');
+  const warnEl = document.querySelector('#confirmModal .modal-warn');
+  if (titleEl) titleEl.textContent = 'Confirmar resultado';
+  if (warnEl) warnEl.textContent = 'Puedes corregir el resultado las veces que necesites.';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-match">
+      <span class="modal-team">${m.local}</span>
+      <span class="modal-score">${validated.gl} - ${validated.gv}</span>
+      <span class="modal-team">${m.visitante}</span>
+    </div>`;
+  document.getElementById('confirmModal').hidden = false;
+}
+
+function openAdminResetConfirm(docId) {
+  const m = state.partidos.find(x => x.docId === docId);
+  if (!m) return;
+  state.adminPendingSave = { docId, gl: null, gv: null, reset: true };
+  const titleEl = document.querySelector('#confirmModal .modal-title');
+  const warnEl = document.querySelector('#confirmModal .modal-warn');
+  if (titleEl) titleEl.textContent = 'Restaurar partido';
+  if (warnEl) warnEl.textContent = 'El partido quedará sin resultado (–) y dejará de contar en el podio.';
+  document.getElementById('modalBody').innerHTML = `
+    <div class="modal-match">
+      <span class="modal-team">${m.local}</span>
+      <span class="modal-score">– - –</span>
+      <span class="modal-team">${m.visitante}</span>
+    </div>`;
+  document.getElementById('confirmModal').hidden = false;
+}
+
+async function handleAdminModalConfirm() {
+  const pending = state.adminPendingSave;
+  if (!pending) return;
+  const { docId, gl, gv, reset } = pending;
+  const btn = document.getElementById('modalConfirm');
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+  try {
+    await saveMatchResult(docId, gl, gv);
+    state.adminPendingSave = null;
+    state.adminEditingId = null;
+    closeModal();
+    showToast(reset ? 'Partido restaurado' : 'Resultado guardado', false);
+    renderAdmin();
+  } catch (err) {
+    state.adminPendingSave = null;
+    state.adminEditingId = null;
+    closeModal();
+    showToast(err.message || 'Error al guardar', true);
+    renderAdmin();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
+  }
+}
+
+let toastTimer = null;
+function showToast(message, isError) {
+  let el = document.getElementById('toast');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast';
+    el.className = 'toast';
+    document.body.appendChild(el);
+  }
+  el.textContent = message;
+  el.classList.toggle('toast-error', !!isError);
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); }, 2800);
+}
+
+function renderAdmin() {
+  const el = document.getElementById('adminContent');
+  if (!el) return;
+  if (!state.partidos.length) {
+    el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando partidos...</div>';
+    return;
+  }
+  el.innerHTML = renderAdminMatchesByDay(state.partidos);
+  attachAdminListeners();
 }
 
 // ============================================================
@@ -637,6 +911,10 @@ function openConfirm(matchId) {
 
   const m = state.partidos.find(x => x.id === matchId);
   state.pendingSave = { matchId, gl, gv };
+  const titleEl = document.querySelector('#confirmModal .modal-title');
+  const warnEl = document.querySelector('#confirmModal .modal-warn');
+  if (titleEl) titleEl.textContent = 'Confirmar pronóstico';
+  if (warnEl) warnEl.textContent = 'Una vez guardado, no podrás editar este pronóstico.';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
       <span class="modal-team">${m.local}</span>
@@ -652,6 +930,7 @@ function closeModal() {
 }
 
 async function handleModalConfirm() {
+  if (state.adminPendingSave) return handleAdminModalConfirm();
   if (!state.pendingSave) return;
   const { matchId, gl, gv } = state.pendingSave;
   const btn = document.getElementById('modalConfirm');
@@ -673,6 +952,10 @@ async function handleModalConfirm() {
 
 function handleModalCancel() {
   closeModal();
+  if (state.adminPendingSave) {
+    state.adminPendingSave = null;
+    return;
+  }
   state.pendingSave = null;
   exitEditMode(true);
 }
@@ -688,14 +971,24 @@ function updateHeaderSession() {
 
 function applyAuthGate() {
   const logged = !!state.session;
-  document.getElementById('bottomNav').style.display = logged ? 'flex' : 'none';
+  const admin = isAdminSession();
+  document.getElementById('bottomNav').style.display = logged && !admin ? 'flex' : 'none';
   document.getElementById('btnRefresh').style.display = logged ? '' : 'none';
   document.getElementById('btnLogout').hidden = !logged;
+  document.body.classList.toggle('admin-mode', admin);
 
   if (!logged) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('viewLogin').classList.add('active');
+  } else if (admin) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById('viewAdmin').classList.add('active');
   }
+}
+
+function showAdminView() {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('viewAdmin').classList.add('active');
 }
 
 function renderAll() {
@@ -758,12 +1051,18 @@ async function handleLogin(e) {
       document.getElementById('loginPassword').value
     );
     document.getElementById('loginPassword').value = '';
-    state.selectedPerson = state.session.clave;
-    subscribeFirestore();
     updateHeaderSession();
     applyAuthGate();
-    switchView('quiniela');
-    setStatus('Conectando...', 'loading');
+    if (isAdminSession()) {
+      subscribeAdmin();
+      showAdminView();
+      setStatus('Conectando...', 'loading');
+    } else {
+      state.selectedPerson = state.session.clave;
+      subscribeFirestore();
+      switchView('quiniela');
+      setStatus('Conectando...', 'loading');
+    }
   } catch (err) {
     errEl.textContent = err.message;
     errEl.hidden = false;
@@ -780,8 +1079,12 @@ async function reconnect() {
   setStatus('Reconectando...');
   try {
     if (!state.firebaseReady) await ensureFirebase();
-    await syncInternetClock();
-    subscribeFirestore();
+    if (isAdminSession()) {
+      subscribeAdmin();
+    } else {
+      await syncInternetClock();
+      subscribeFirestore();
+    }
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
   } catch (err) {
     console.error(err);
@@ -822,11 +1125,18 @@ async function bootstrap() {
 
   updateHeaderSession();
   if (state.session) {
-    state.selectedPerson = state.session.clave;
-    subscribeFirestore();
-    applyAuthGate();
-    switchView('podio');
-    setStatus('Conectando...', 'loading');
+    if (isAdminSession()) {
+      subscribeAdmin();
+      applyAuthGate();
+      showAdminView();
+      setStatus('Conectando...', 'loading');
+    } else {
+      state.selectedPerson = state.session.clave;
+      subscribeFirestore();
+      applyAuthGate();
+      switchView('podio');
+      setStatus('Conectando...', 'loading');
+    }
   } else {
     applyAuthGate();
     setStatus('Inicia sesión para continuar', 'loading');
