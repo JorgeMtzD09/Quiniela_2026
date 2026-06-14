@@ -49,10 +49,71 @@
     </section>
 
     <section class="view" id="viewPodio">
-      <div class="section-header">
-        <h2>Tabla General</h2>
-      </div>
       <div id="podioContent" class="podio-list"></div>
+    </section>
+
+    <section class="view" id="viewInfo">
+      <div class="info-hero">
+        <img class="info-hero-img" src="wc-hero.png" alt="Mundial 2026" loading="lazy">
+        <div class="info-hero-overlay">
+          <span class="info-hero-flags">🇲🇽 🇺🇸 🇨🇦</span>
+          <h2 class="info-hero-title">Quiniela Mundial 2026</h2>
+          <p class="info-hero-sub">Reglas, puntos y premios</p>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3 class="info-card-title"><span class="info-card-emoji">📋</span> Reglas</h3>
+        <ul class="info-rules">
+          <li>
+            <span class="info-rule-icon">⏰</span>
+            <span>Cada jugador debe registrar su pronóstico de cada partido <strong>antes de la hora de inicio</strong>. Una vez comenzado el partido, ya no se puede modificar.</span>
+          </li>
+          <li>
+            <span class="info-rule-icon">💵</span>
+            <span>La cooperación es de <strong>$500 pesos</strong> por jugador. Puedes entregarla al organizador hasta <strong>un día antes de que finalice la fase de grupos</strong> (sábado 27 de junio).</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
+        <h3 class="info-card-title"><span class="info-card-emoji">⚽</span> Puntos</h3>
+        <div class="points-grid">
+          <div class="point-item">
+            <div class="point-value">3</div>
+            <div class="point-label">Acierto de ganador<small>local, visitante o empate</small></div>
+          </div>
+          <div class="point-item bonus">
+            <div class="point-value">+1</div>
+            <div class="point-label">Bono marcador exacto<small>predices el resultado exacto</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-card">
+        <h3 class="info-card-title"><span class="info-card-emoji">🏆</span> Premios</h3>
+        <div class="prize-total">
+          <span class="prize-total-label">Bolsa total</span>
+          <span class="prize-total-value">$2,500</span>
+        </div>
+        <div class="prize-list">
+          <div class="prize-row prize-gold">
+            <span class="prize-medal">🥇</span>
+            <span class="prize-place">1<sup>er</sup> Lugar</span>
+            <span class="prize-amount">$1,500</span>
+          </div>
+          <div class="prize-row prize-silver">
+            <span class="prize-medal">🥈</span>
+            <span class="prize-place">2<sup>o</sup> Lugar</span>
+            <span class="prize-amount">$750</span>
+          </div>
+          <div class="prize-row prize-bronze">
+            <span class="prize-medal">🥉</span>
+            <span class="prize-place">3<sup>er</sup> Lugar</span>
+            <span class="prize-amount">$250</span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="view" id="viewQuiniela">
@@ -72,7 +133,15 @@
   </main>
 
   <nav class="bottom-nav" id="bottomNav">
-    <button class="nav-btn active" data-view="podio">
+    <button class="nav-btn active" data-view="info">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <path d="M12 16v-4"/>
+        <path d="M12 8h.01"/>
+      </svg>
+      <span>Info</span>
+    </button>
+    <button class="nav-btn" data-view="podio">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
         <path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22"/>

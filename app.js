@@ -18,6 +18,8 @@ const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
 const MATCH_LOCK_INTERVAL_MS = 30000;
+// Duración aproximada de un partido (90' + medio tiempo + descuentos) = 1h45
+const MATCH_DURATION_MS = 105 * 60 * 1000;
 
 // ============================================================
 // Firebase
@@ -103,6 +105,15 @@ function parsePartidoFecha(raw) {
 function matchStarted(m) {
   if (!m?.fecha) return false;
   return nowMs() >= m.fecha.getTime();
+}
+
+// Partido en juego: ya inició, sigue dentro de la ventana de 1h45 y aún sin resultado final
+function matchLive(m) {
+  if (!m?.fecha) return false;
+  if (m.golesLocal !== null) return false;
+  const start = m.fecha.getTime();
+  const now = nowMs();
+  return now >= start && now < start + MATCH_DURATION_MS;
 }
 
 function formatMatchDate(d) {
@@ -784,6 +795,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   }
 
   // Solo lectura
+  const isLive = !isPlayed && matchLive(m);
   const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
@@ -792,9 +804,12 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   const realV = isPlayed ? m.golesVisitante : '–';
   let stateClass = 'state-pending';
   if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
+  else if (isLive) stateClass = 'state-live';
   let ptsHTML;
   if (isPlayed) {
     ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
+  } else if (isLive) {
+    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
   } else {
@@ -1015,7 +1030,7 @@ function formatTime(date) {
 // Navegación
 // ============================================================
 function switchView(viewKey) {
-  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela' };
+  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo' };
   const target = views[viewKey] ? viewKey : 'podio';
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -1134,7 +1149,7 @@ async function bootstrap() {
       state.selectedPerson = state.session.clave;
       subscribeFirestore();
       applyAuthGate();
-      switchView('podio');
+      switchView('info');
       setStatus('Conectando...', 'loading');
     }
   } else {
