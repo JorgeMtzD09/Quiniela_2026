@@ -18,8 +18,8 @@ const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
 const MATCH_LOCK_INTERVAL_MS = 30000;
-// Duración aproximada de un partido (90' + medio tiempo + descuentos) = 1h45
-const MATCH_DURATION_MS = 105 * 60 * 1000;
+// Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
+const MATCH_DURATION_MS = 120 * 60 * 1000;
 
 // ============================================================
 // Firebase
@@ -764,6 +764,65 @@ function renderPersonDetail() {
   );
 
   attachEditingListeners();
+  updateJumpButton();
+}
+
+// El primer partido que aún no tiene resultado: el primero en estatus
+// "Guardado" (con pronóstico) o "Por jugar" (sin pronóstico), es decir,
+// el primero después del último ya jugado con resultado.
+function getCurrentMatchId() {
+  const target = state.partidos.find(m => m.golesLocal === null);
+  return target ? target.id : null;
+}
+
+// Devuelve la tarjeta del primer partido pendiente, si existe y la vista
+// Quiniela está activa.
+function getCurrentMatchCard() {
+  const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
+  if (!quinielaActive) return null;
+  const id = getCurrentMatchId();
+  if (id === null) return null;
+  return document.querySelector(`#personContent .match-card[data-match-id="${id}"]`);
+}
+
+// Muestra/oculta el botón y ajusta la flecha (arriba o abajo) según dónde
+// esté el partido pendiente respecto a la zona visible. Se oculta cuando el
+// partido ya está a la vista.
+function updateJumpButton() {
+  const btn = document.getElementById('btnJumpCurrent');
+  if (!btn) return;
+
+  const card = getCurrentMatchCard();
+  if (!card) { btn.hidden = true; return; }
+
+  const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
+  const nav = document.getElementById('bottomNav');
+  const regionTop = sticky ? sticky.getBoundingClientRect().bottom : 0;
+  const navTop = nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
+  const regionBottom = Math.min(window.innerHeight, navTop);
+
+  const rect = card.getBoundingClientRect();
+  const visible = rect.bottom > regionTop + 8 && rect.top < regionBottom - 8;
+
+  if (visible) { btn.hidden = true; return; }
+
+  btn.hidden = false;
+  // Si la tarjeta está por debajo de la zona visible, la flecha apunta abajo;
+  // si está por arriba, apunta arriba.
+  const pointsUp = rect.top < regionTop;
+  btn.classList.toggle('points-up', pointsUp);
+}
+
+// Hace scroll suave hasta el primer partido pendiente, compensando la barra fija.
+function scrollToCurrentMatch() {
+  const card = getCurrentMatchCard();
+  if (!card) return;
+
+  const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
+  const offset = sticky ? sticky.getBoundingClientRect().bottom : 0;
+  const delta = card.getBoundingClientRect().top - offset - 8;
+
+  window.scrollBy({ top: delta, behavior: 'smooth' });
 }
 
 function buildMatchCard(m, { isOwn, savedItems, predMap }) {
@@ -817,7 +876,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   }
 
   return `
-    <div class="match-card ${stateClass}">
+    <div class="match-card ${stateClass}" data-match-id="${m.id}">
       ${matchDatetimeHTML(m)}
       ${teams}
       <div class="score-rows">
@@ -999,6 +1058,7 @@ function applyAuthGate() {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('viewAdmin').classList.add('active');
   }
+  updateJumpButton();
 }
 
 function showAdminView() {
@@ -1036,6 +1096,7 @@ function switchView(viewKey) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
   if (target === 'quiniela') renderPersonDetail();
+  updateJumpButton();
 }
 
 function initNavigation() {
@@ -1162,6 +1223,16 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);
+  document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
+
+  let jumpTick = false;
+  const onScrollOrResize = () => {
+    if (jumpTick) return;
+    jumpTick = true;
+    requestAnimationFrame(() => { jumpTick = false; updateJumpButton(); });
+  };
+  window.addEventListener('scroll', onScrollOrResize, { passive: true });
+  window.addEventListener('resize', onScrollOrResize);
   document.getElementById('loginForm').addEventListener('submit', handleLogin);
   document.getElementById('modalConfirm').addEventListener('click', handleModalConfirm);
   document.getElementById('modalCancel').addEventListener('click', handleModalCancel);
