@@ -692,17 +692,232 @@ function podioSignature() {
   return state.podio.map(p => `${p.clave}:${p.rank}:${p.puntos}`).join('|');
 }
 
-function getPodioAnimClass(rank, maxRank) {
-  if (rank === 1) return 'podio-anim-gold';
-  if (rank === 2) return 'podio-anim-silver';
-  if (rank === 3) return 'podio-anim-bronze';
-  if (rank === maxRank && maxRank > 3) return 'podio-anim-last';
-  return 'podio-anim-mid';
+function buildPodioMarcador(p, { last = false } = {}) {
+  const rankClass = p.rank <= 3 ? `rank-${p.rank}` : '';
+  const lastClass = last ? 'rank-last' : '';
+  return `
+    <div class="podium-marcador ${rankClass} ${lastClass}">
+      <div class="marcador-header">
+        <span class="marcador-rank">${p.rank}º</span>
+        <span class="marcador-pts">${p.puntos} pts</span>
+      </div>
+      <div class="marcador-name">${p.nombre}</div>
+    </div>`;
+}
+
+function buildPodioStackEntry(person, { baseDelay, animate, stackIndex, stackDelay = 340 }) {
+  const delay = baseDelay + stackIndex * stackDelay;
+  return `
+    <div class="podium-stack-entry" style="--podio-delay: ${delay}ms; --stack-i: ${stackIndex}">
+      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador' : ''}" style="--podio-delay: ${delay}ms">
+        ${buildPodioMarcador(person)}
+      </div>
+      <div class="podium-ball-wrap ${animate ? 'podio-anim-drop' : ''}" style="--podio-delay: ${delay}ms">
+        <div class="podium-ball ${animate ? 'podio-anim-bounce' : ''}" style="--podio-delay: ${delay}ms" aria-hidden="true">
+          <span class="ball-skin">⚽</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildPodioSlot(rank, people, baseDelay, animate) {
+  const blockClass = `podium-block block-${rank} rank-${rank}`;
+  const list = Array.isArray(people) ? people : (people ? [people] : []);
+  const tieClass = list.length > 1 ? `podium-slot-tied podium-tie-${Math.min(list.length, 5)}` : '';
+
+  if (!list.length) {
+    return `
+      <div class="podium-slot slot-${rank} podium-slot-empty">
+        <div class="${blockClass}"></div>
+      </div>`;
+  }
+
+  const stacked = list.map((person, i) =>
+    buildPodioStackEntry(person, { baseDelay, animate, stackIndex: i })
+  ).join('');
+
+  return `
+    <div class="podium-slot slot-${rank} ${tieClass}" style="--podio-delay: ${baseDelay}ms; --tie-count: ${list.length}">
+      <div class="podium-stack">
+        ${stacked}
+      </div>
+      <div class="${blockClass}">
+        <span class="podium-medal">${getMedal(rank)}</span>
+      </div>
+    </div>`;
+}
+
+function getPodiumByRank(podio) {
+  const byRank = { 1: [], 2: [], 3: [] };
+  podio.forEach(p => {
+    if (p.rank <= 3) byRank[p.rank].push(p);
+  });
+  return byRank;
+}
+
+function shuffleInPlace(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+const FIELD_SLOT_W = 26;
+const FIELD_SLOT_H = 34;
+const FIELD_SLOT_PAD = 4;
+const FIELD_SLOT_GAP = 2;
+
+function rectsOverlap(a, b, gap = FIELD_SLOT_GAP) {
+  return !(
+    a.x + a.w + gap <= b.x ||
+    b.x + b.w + gap <= a.x ||
+    a.y + a.h + gap <= b.y ||
+    b.y + b.h + gap <= a.y
+  );
+}
+
+function gridFieldPlacement(player, placed) {
+  const stepX = FIELD_SLOT_W + FIELD_SLOT_GAP;
+  const stepY = FIELD_SLOT_H + FIELD_SLOT_GAP;
+  for (let y = FIELD_SLOT_PAD; y + FIELD_SLOT_H <= 100 - FIELD_SLOT_PAD; y += stepY) {
+    for (let x = FIELD_SLOT_PAD; x + FIELD_SLOT_W <= 100 - FIELD_SLOT_PAD; x += stepX) {
+      const rect = { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H };
+      if (placed.every(p => !rectsOverlap(rect, p.rect))) {
+        return { player, x, y, rect };
+      }
+    }
+  }
+  const n = placed.length;
+  const cols = Math.max(1, Math.floor((100 - FIELD_SLOT_PAD * 2) / stepX));
+  const x = FIELD_SLOT_PAD + (n % cols) * stepX * 0.85;
+  const y = FIELD_SLOT_PAD + Math.floor(n / cols) * stepY * 0.85;
+  return { player, x, y, rect: { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H } };
+}
+
+function layoutFieldPlayers(players) {
+  if (!players.length) return new Map();
+  const order = shuffleInPlace([...players]);
+  const placed = [];
+
+  for (const player of order) {
+    let spot = null;
+    for (let attempt = 0; attempt < 120; attempt++) {
+      const x = FIELD_SLOT_PAD + Math.random() * (100 - FIELD_SLOT_W - FIELD_SLOT_PAD * 2);
+      const y = FIELD_SLOT_PAD + Math.random() * (100 - FIELD_SLOT_H - FIELD_SLOT_PAD * 2);
+      const rect = { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H };
+      if (placed.every(p => !rectsOverlap(rect, p.rect))) {
+        spot = { player, x, y, rect };
+        break;
+      }
+    }
+    if (!spot) spot = gridFieldPlacement(player, placed);
+    placed.push(spot);
+  }
+
+  return new Map(placed.map(p => [p.player.clave, p]));
+}
+
+function buildPodioFieldEntry(p, { delay, animate, last, index, placement }) {
+  const posStyle = placement
+    ? `left: ${placement.x.toFixed(2)}%; top: ${placement.y.toFixed(2)}%;`
+    : '';
+  if (last) {
+    return `
+    <div class="podio-field-entry rank-last ${animate ? 'podio-anim-last-roll' : ''}" style="--podio-delay: ${delay}ms; --field-i: ${index}; ${posStyle}">
+      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador-rest podio-reveal-marcador-sad' : ''}" style="--podio-delay: ${delay}ms">
+        ${buildPodioMarcador(p, { last: true })}
+      </div>
+      <div class="podium-ball-wrap">
+        <div class="podium-ball" aria-hidden="true">
+          <span class="ball-skin">⚽</span>
+        </div>
+      </div>
+    </div>`;
+  }
+  return `
+    <div class="podio-field-entry" style="--podio-delay: ${delay}ms; --field-i: ${index}; ${posStyle}">
+      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador-rest' : ''}" style="--podio-delay: ${delay}ms">
+        ${buildPodioMarcador(p, { last: false })}
+      </div>
+      <div class="podium-ball-wrap ${animate ? 'podio-anim-drop' : ''}" style="--podio-delay: ${delay}ms">
+        <div class="podium-ball podio-anim-bounce" style="--podio-delay: ${delay}ms" aria-hidden="true">
+          <span class="ball-skin">⚽</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function buildPodioRest(rest, animate, maxRank) {
+  if (!rest.length) return '';
+  const regular = rest.filter(p => p.rank !== maxRank);
+  const lastOnes = rest.filter(p => p.rank === maxRank);
+  const allField = [...regular, ...lastOnes];
+  const placements = layoutFieldPlayers(allField);
+
+  let delay = 1100;
+  const regularHtml = regular.map((p, i) => {
+    const html = buildPodioFieldEntry(p, {
+      delay,
+      animate,
+      last: false,
+      index: i,
+      placement: placements.get(p.clave),
+    });
+    delay += 420;
+    return html;
+  }).join('');
+
+  let lastDelay = delay + (regular.length ? 180 : 0);
+  const lastHtml = lastOnes.map((p, i) => {
+    const html = buildPodioFieldEntry(p, {
+      delay: lastDelay,
+      animate,
+      last: true,
+      index: regular.length + i,
+      placement: placements.get(p.clave),
+    });
+    lastDelay += 280;
+    return html;
+  }).join('');
+
+  return `
+    <div class="podio-field">
+      <div class="podio-field-grass" aria-hidden="true"></div>
+      <div class="podio-field-lines" aria-hidden="true"></div>
+      <div class="podio-field-players">
+        ${regularHtml}${lastHtml}
+      </div>
+    </div>`;
+}
+
+const PODIO_FIELD_SETTLE_MS = 2800;
+const PODIO_LAST_SETTLE_MS = 3600;
+let podioFieldTimers = [];
+
+function setupPodioFieldSettle(container, animate) {
+  podioFieldTimers.forEach(clearTimeout);
+  podioFieldTimers = [];
+  if (!animate) {
+    container.querySelectorAll('.podio-field-entry .podium-marcador-wrap').forEach(el => {
+      el.classList.add('marcador-visible');
+    });
+    return;
+  }
+  container.querySelectorAll('.podio-field-entry').forEach(entry => {
+    const delay = parseInt(entry.style.getPropertyValue('--podio-delay') || '0', 10);
+    const settleMs = entry.classList.contains('rank-last') ? PODIO_LAST_SETTLE_MS : PODIO_FIELD_SETTLE_MS;
+    podioFieldTimers.push(setTimeout(() => {
+      entry.querySelector('.podium-marcador-wrap')?.classList.add('marcador-visible');
+    }, delay + settleMs));
+  });
 }
 
 function renderPodio(forceAnimate = false) {
   const el = document.getElementById('podioContent');
   if (!state.podio.length) {
+    podioFieldTimers.forEach(clearTimeout);
+    podioFieldTimers = [];
     el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando podio...</div>';
     el.classList.remove('podio-animate');
     lastPodioSig = '';
@@ -714,30 +929,23 @@ function renderPodio(forceAnimate = false) {
   lastPodioSig = sig;
 
   const maxRank = Math.max(...state.podio.map(p => p.rank));
-  const rankOrder = [...new Set(state.podio.map(p => p.rank))].sort((a, b) => a - b);
-  const rankBaseDelay = {};
-  rankOrder.forEach((r, i) => { rankBaseDelay[r] = i * 520; });
+  const byRank = getPodiumByRank(state.podio);
+  const rest = state.podio.filter(p => p.rank > 3);
+  const topDelays = { 2: 0, 1: 450, 3: 900 };
+  const hasPodiumTies = [1, 2, 3].some(r => byRank[r].length > 1);
 
-  el.innerHTML = state.podio.map(p => {
-    const delay = rankBaseDelay[p.rank];
-    const styleRank = p.rank <= 3 ? `rank-${p.rank}` : '';
-    const styleLast = p.rank === maxRank && maxRank > 3 ? 'rank-last' : '';
-    const animClass = getPodioAnimClass(p.rank, maxRank);
-    return `
-    <div class="podio-card ${styleRank} ${styleLast} ${animClass}" style="--podio-delay: ${delay}ms">
-      <div class="podio-rank">${p.rank}</div>
-      ${p.rank <= 3
-        ? `<div class="podio-medal podio-reveal-item">${getMedal(p.rank)}</div>`
-        : '<div class="podio-medal podio-reveal-item"></div>'}
-      <div class="podio-info podio-reveal-item">
-        <div class="podio-name">${p.nombre}</div>
-        <div class="podio-detail">${p.jugados} partidos jugados</div>
+  el.innerHTML = `
+    <div class="podio-stage">
+      <div class="podio-podium ${hasPodiumTies ? 'podio-podium-tied' : ''}">
+        ${buildPodioSlot(2, byRank[2], topDelays[2], animate)}
+        ${buildPodioSlot(1, byRank[1], topDelays[1], animate)}
+        ${buildPodioSlot(3, byRank[3], topDelays[3], animate)}
       </div>
-      <div class="podio-points podio-reveal-item">${p.puntos}<span>pts</span></div>
+      ${buildPodioRest(rest, animate, maxRank)}
     </div>`;
-  }).join('');
 
   el.classList.toggle('podio-animate', animate);
+  setupPodioFieldSettle(el, animate);
 }
 
 function getMatchDayGroups(partidos) {
@@ -929,6 +1137,12 @@ function ensureDayForCurrentMatch() {
 function updateJumpButton() {
   const btn = document.getElementById('btnJumpCurrent');
   if (!btn) return;
+
+  const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
+  if (!quinielaActive) {
+    btn.hidden = true;
+    return;
+  }
 
   const id = getCurrentMatchId();
   if (id === null) { btn.hidden = true; return; }
