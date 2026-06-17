@@ -685,23 +685,58 @@ function getMedal(rank) {
   return '';
 }
 
-function renderPodio() {
+let lastPodioSig = '';
+
+function podioSignature() {
+  return state.podio.map(p => `${p.clave}:${p.rank}:${p.puntos}`).join('|');
+}
+
+function getPodioAnimClass(rank, maxRank) {
+  if (rank === 1) return 'podio-anim-gold';
+  if (rank === 2) return 'podio-anim-silver';
+  if (rank === 3) return 'podio-anim-bronze';
+  if (rank === maxRank && maxRank > 3) return 'podio-anim-last';
+  return 'podio-anim-mid';
+}
+
+function renderPodio(forceAnimate = false) {
   const el = document.getElementById('podioContent');
   if (!state.podio.length) {
     el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando podio...</div>';
+    el.classList.remove('podio-animate');
+    lastPodioSig = '';
     return;
   }
-  el.innerHTML = state.podio.map(p => `
-    <div class="podio-card rank-${p.rank <= 3 ? p.rank : ''}">
+
+  const sig = podioSignature();
+  const animate = forceAnimate || sig !== lastPodioSig;
+  lastPodioSig = sig;
+
+  const maxRank = Math.max(...state.podio.map(p => p.rank));
+  const rankOrder = [...new Set(state.podio.map(p => p.rank))].sort((a, b) => a - b);
+  const rankBaseDelay = {};
+  rankOrder.forEach((r, i) => { rankBaseDelay[r] = i * 520; });
+
+  el.innerHTML = state.podio.map(p => {
+    const delay = rankBaseDelay[p.rank];
+    const styleRank = p.rank <= 3 ? `rank-${p.rank}` : '';
+    const styleLast = p.rank === maxRank && maxRank > 3 ? 'rank-last' : '';
+    const animClass = getPodioAnimClass(p.rank, maxRank);
+    return `
+    <div class="podio-card ${styleRank} ${styleLast} ${animClass}" style="--podio-delay: ${delay}ms">
       <div class="podio-rank">${p.rank}</div>
-      ${p.rank <= 3 ? `<div class="podio-medal">${getMedal(p.rank)}</div>` : '<div class="podio-medal"></div>'}
-      <div class="podio-info">
+      ${p.rank <= 3
+        ? `<div class="podio-medal podio-reveal-item">${getMedal(p.rank)}</div>`
+        : '<div class="podio-medal podio-reveal-item"></div>'}
+      <div class="podio-info podio-reveal-item">
         <div class="podio-name">${p.nombre}</div>
         <div class="podio-detail">${p.jugados} partidos jugados</div>
       </div>
-      <div class="podio-points">${p.puntos}<span>pts</span></div>
-    </div>
-  `).join('');
+      <div class="podio-points podio-reveal-item">${p.puntos}<span>pts</span></div>
+    </div>`;
+  }).join('');
+
+  el.classList.toggle('podio-animate', animate);
 }
 
 function renderPersonTabs() {
@@ -1096,6 +1131,7 @@ function switchView(viewKey) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
   if (target === 'quiniela') renderPersonDetail();
+  if (target === 'podio') renderPodio(true);
   updateJumpButton();
 }
 
