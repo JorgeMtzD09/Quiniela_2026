@@ -716,6 +716,40 @@ body.admin-mode {
   justify-content: flex-end;
 }
 
+/* Day tabs (debajo de participantes) */
+.day-tabs {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-top: 8px;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.day-tabs::-webkit-scrollbar { display: none; }
+
+.day-tab {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border: 2px solid var(--border);
+  border-radius: 18px;
+  background: var(--card);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  color: var(--text);
+  text-transform: capitalize;
+}
+
+.day-tab.active {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
 /* Person tabs */
 .person-tabs {
   display: flex;
@@ -810,9 +844,6 @@ body.admin-mode {
 }
 
 .day-header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   margin: 16px 0 12px;
   padding: 16px 16px;
   font-size: 0.9rem;

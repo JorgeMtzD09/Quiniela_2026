@@ -212,3 +212,12 @@ export function formatDayHeaderCDMX(date) {
   });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+/** Etiqueta corta para tabs de día: "11 jun". */
+export function formatDayTabCDMX(date) {
+  return date.toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'America/Mexico_City',
+  }).replace('.', '');
+}

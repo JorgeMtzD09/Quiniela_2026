@@ -1,4 +1,4 @@
-import { formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX } from './fixtures-data.js';
+import { formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX } from './fixtures-data.js';
 
 // ============================================================
 // CONFIGURACIÓN — Firebase
@@ -60,6 +60,7 @@ let state = {
   pronosticosMeta: {},
   podio: [],
   selectedPerson: null,
+  selectedDay: null,
   session: null,
   firebaseReady: false,
   editingMatchId: null,
@@ -739,6 +740,82 @@ function renderPodio(forceAnimate = false) {
   el.classList.toggle('podio-animate', animate);
 }
 
+function getMatchDayGroups(partidos) {
+  const groups = [];
+  const indexByKey = new Map();
+  const SIN_FECHA = '__sin_fecha__';
+
+  for (const m of partidos) {
+    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({
+        key,
+        label: m.fecha ? formatDayTabCDMX(m.fecha) : 'Sin fecha',
+        matches: [],
+      });
+    }
+    groups[indexByKey.get(key)].matches.push(m);
+  }
+  return groups;
+}
+
+function ensureSelectedDay() {
+  const groups = getMatchDayGroups(state.partidos);
+  if (!groups.length) return;
+  if (state.selectedDay && groups.some(g => g.key === state.selectedDay)) return;
+
+  const currentId = getCurrentMatchId();
+  if (currentId != null) {
+    const m = state.partidos.find(x => x.id === currentId);
+    if (m?.fecha) {
+      state.selectedDay = dayKeyCDMX(m.fecha);
+      return;
+    }
+  }
+  state.selectedDay = groups[0].key;
+}
+
+function renderDayTabs() {
+  const el = document.getElementById('dayTabs');
+  if (!el) return;
+  const groups = getMatchDayGroups(state.partidos);
+  if (!groups.length) {
+    el.innerHTML = '';
+    return;
+  }
+  ensureSelectedDay();
+  el.innerHTML = groups.map(g => `
+    <button type="button" class="day-tab ${state.selectedDay === g.key ? 'active' : ''}" data-day="${g.key}">
+      ${g.label}
+    </button>`).join('');
+  el.querySelectorAll('.day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.day === state.selectedDay) return;
+      if (state.editingMatchId !== null) {
+        const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de fecha?');
+        if (!ok) return;
+        state.editingMatchId = null;
+      }
+      state.selectedDay = btn.dataset.day;
+      renderDayTabs();
+      renderPersonDetail({ resetScroll: true });
+    });
+  });
+  centerActiveDayTab();
+}
+
+function centerActiveDayTab() {
+  const container = document.getElementById('dayTabs');
+  if (!container) return;
+  const active = container.querySelector('.day-tab.active');
+  if (!active) return;
+  requestAnimationFrame(() => {
+    const target = active.offsetLeft - container.clientWidth / 2 + active.offsetWidth / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  });
+}
+
 function renderPersonTabs() {
   const el = document.getElementById('personTabs');
   const ordered = state.podio.length
@@ -765,7 +842,8 @@ function renderPersonTabs() {
   });
 }
 
-function renderPersonDetail() {
+function renderPersonDetail({ resetScroll = false } = {}) {
+  const scrollY = resetScroll ? null : window.scrollY;
   const person = state.selectedPerson;
   if (!person) return;
 
@@ -794,12 +872,24 @@ function renderPersonDetail() {
     playedCountEl.textContent = `${played}/${state.partidos.length}`;
   }
 
-  document.getElementById('personContent').innerHTML = renderMatchesByDay(
-    state.partidos, { isOwn, savedItems, predMap }
-  );
+  const ctx = { isOwn, savedItems, predMap };
+  ensureSelectedDay();
+  const dayMatches = state.selectedDay
+    ? state.partidos.filter(m => {
+      const key = m.fecha ? dayKeyCDMX(m.fecha) : '__sin_fecha__';
+      return key === state.selectedDay;
+    })
+    : state.partidos;
+  document.getElementById('personContent').innerHTML = renderMatchesFlat(dayMatches, ctx);
 
   attachEditingListeners();
   updateJumpButton();
+
+  if (resetScroll) {
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  } else if (scrollY !== null) {
+    requestAnimationFrame(() => window.scrollTo({ top: scrollY, behavior: 'instant' }));
+  }
 }
 
 // El primer partido que aún no tiene resultado: el primero en estatus
@@ -820,6 +910,19 @@ function getCurrentMatchCard() {
   return document.querySelector(`#personContent .match-card[data-match-id="${id}"]`);
 }
 
+function ensureDayForCurrentMatch() {
+  const id = getCurrentMatchId();
+  if (id == null) return false;
+  const m = state.partidos.find(x => x.id === id);
+  if (!m?.fecha) return false;
+  const day = dayKeyCDMX(m.fecha);
+  if (state.selectedDay === day) return false;
+  state.selectedDay = day;
+  renderDayTabs();
+  renderPersonDetail({ resetScroll: true });
+  return true;
+}
+
 // Muestra/oculta el botón y ajusta la flecha (arriba o abajo) según dónde
 // esté el partido pendiente respecto a la zona visible. Se oculta cuando el
 // partido ya está a la vista.
@@ -827,8 +930,15 @@ function updateJumpButton() {
   const btn = document.getElementById('btnJumpCurrent');
   if (!btn) return;
 
+  const id = getCurrentMatchId();
+  if (id === null) { btn.hidden = true; return; }
+
   const card = getCurrentMatchCard();
-  if (!card) { btn.hidden = true; return; }
+  if (!card) {
+    btn.hidden = false;
+    btn.classList.remove('points-up');
+    return;
+  }
 
   const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
   const nav = document.getElementById('bottomNav');
@@ -850,14 +960,23 @@ function updateJumpButton() {
 
 // Hace scroll suave hasta el primer partido pendiente, compensando la barra fija.
 function scrollToCurrentMatch() {
-  const card = getCurrentMatchCard();
-  if (!card) return;
+  const dayChanged = ensureDayForCurrentMatch();
+  const scrollToCard = () => {
+    const card = getCurrentMatchCard();
+    if (!card) return;
 
-  const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
-  const offset = sticky ? sticky.getBoundingClientRect().bottom : 0;
-  const delta = card.getBoundingClientRect().top - offset - 8;
+    const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
+    const offset = sticky ? sticky.getBoundingClientRect().bottom : 0;
+    const delta = card.getBoundingClientRect().top - offset - 8;
 
-  window.scrollBy({ top: delta, behavior: 'smooth' });
+    window.scrollBy({ top: delta, behavior: 'smooth' });
+  };
+
+  if (dayChanged) {
+    requestAnimationFrame(() => requestAnimationFrame(scrollToCard));
+  } else {
+    scrollToCard();
+  }
 }
 
 function buildMatchCard(m, { isOwn, savedItems, predMap }) {
@@ -930,31 +1049,8 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
     </div>`;
 }
 
-function renderMatchesByDay(partidos, ctx) {
-  const groups = [];
-  const indexByKey = new Map();
-  const SIN_FECHA = '__sin_fecha__';
-
-  for (const m of partidos) {
-    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
-    if (!indexByKey.has(key)) {
-      indexByKey.set(key, groups.length);
-      groups.push({
-        key,
-        label: m.fecha ? formatDayHeaderCDMX(m.fecha) : 'Fecha por definir',
-        matches: [],
-      });
-    }
-    groups[indexByKey.get(key)].matches.push(m);
-  }
-
-  return groups.map(g => `
-    <div class="day-group">
-      <h3 class="day-header">${g.label}</h3>
-      <div class="day-matches">
-        ${g.matches.map(m => buildMatchCard(m, ctx)).join('')}
-      </div>
-    </div>`).join('');
+function renderMatchesFlat(partidos, ctx) {
+  return partidos.map(m => buildMatchCard(m, ctx)).join('');
 }
 
 // ============================================================
@@ -1103,6 +1199,7 @@ function showAdminView() {
 
 function renderAll() {
   renderPodio();
+  renderDayTabs();
   renderPersonTabs();
   if (state.editingMatchId === null) renderPersonDetail();
   updateHeaderSession();
@@ -1130,7 +1227,10 @@ function switchView(viewKey) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
-  if (target === 'quiniela') renderPersonDetail();
+  if (target === 'quiniela') {
+    renderDayTabs();
+    renderPersonDetail();
+  }
   if (target === 'podio') renderPodio(true);
   updateJumpButton();
 }
