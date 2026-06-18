@@ -1,4 +1,8 @@
-import { formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX } from './fixtures-data.js';
+import {
+  formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX,
+  GROUP_LETTERS, computeGroupStandings, parseApiStandings, mergeStandings,
+  displayTeamName, teamFlag, getMatchGroup,
+} from './fixtures-data.js';
 
 // ============================================================
 // CONFIGURACIÓN — Firebase
@@ -17,6 +21,8 @@ export const CONFIG = {
 const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
+const STANDINGS_API_URL = 'https://wcup2026.org/api/data.php?action=standings';
+const STANDINGS_POLL_MS = 60000;
 const MATCH_LOCK_INTERVAL_MS = 30000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
@@ -68,6 +74,10 @@ let state = {
   adminEditingId: null,
   adminPendingSave: null,
   clockOffset: 0,
+  apiStandings: null,
+  apiStandingsAt: null,
+  activeView: 'info',
+  gruposPollTimer: null,
 };
 
 let matchLockTimer = null;
@@ -123,7 +133,12 @@ function formatMatchDate(d) {
 }
 
 function matchDatetimeHTML(m) {
-  return `<div class="match-datetime">${formatMatchDate(m.fecha)}</div>`;
+  const letter = getMatchGroup(m.local, m.visitante);
+  const groupHTML = letter
+    ? `<span class="match-group-chip">Grupo ${letter}</span>`
+    : '';
+  const dateHTML = `<span class="match-datetime-text">${formatMatchDate(m.fecha)}</span>`;
+  return `<div class="match-datetime">${groupHTML}${dateHTML}</div>`;
 }
 
 function startMatchLockTimer() {
@@ -203,6 +218,7 @@ async function login(usuario, password) {
 function logout() {
   teardownListeners();
   stopMatchLockTimer();
+  stopGruposPolling();
   clearSession();
   state.selectedPerson = null;
   state.editingMatchId = null;
@@ -212,6 +228,8 @@ function logout() {
   state.pronosticos = {};
   state.pronosticosMeta = {};
   state.podio = [];
+  state.apiStandings = null;
+  state.apiStandingsAt = null;
   closeModal();
   document.body.classList.remove('admin-mode');
   updateHeaderSession();
@@ -1416,6 +1434,7 @@ function renderAll() {
   renderDayTabs();
   renderPersonTabs();
   if (state.editingMatchId === null) renderPersonDetail();
+  if (state.activeView === 'grupos') renderGrupos();
   updateHeaderSession();
 }
 
@@ -1433,17 +1452,145 @@ function formatTime(date) {
 }
 
 // ============================================================
+// Tablas de grupos
+// ============================================================
+async function fetchApiStandings() {
+  try {
+    const res = await fetch(STANDINGS_API_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error('API no disponible');
+    const data = await res.json();
+    if (!data.ok || !data.standings) throw new Error('Respuesta inválida');
+    state.apiStandings = parseApiStandings(data.standings);
+    state.apiStandingsAt = Date.now();
+    return true;
+  } catch (err) {
+    console.warn('Tablas externas no disponibles:', err);
+    return false;
+  }
+}
+
+function stopGruposPolling() {
+  if (state.gruposPollTimer) {
+    clearInterval(state.gruposPollTimer);
+    state.gruposPollTimer = null;
+  }
+}
+
+function startGruposPolling() {
+  stopGruposPolling();
+  fetchApiStandings().then(ok => {
+    if (ok && state.activeView === 'grupos') renderGrupos();
+  });
+  state.gruposPollTimer = setInterval(async () => {
+    if (state.activeView !== 'grupos') return;
+    const ok = await fetchApiStandings();
+    if (ok) renderGrupos();
+  }, STANDINGS_POLL_MS);
+}
+
+function formatGruposUpdated() {
+  const el = document.getElementById('gruposUpdated');
+  if (!el) return;
+  const local = computeGroupStandings(state.partidos);
+  const merged = mergeStandings(local, state.apiStandings);
+  const played = GROUP_LETTERS.reduce((sum, l) =>
+    sum + merged[l].reduce((s, r) => s + r.j, 0), 0);
+  const parts = [`${played / 2 | 0} partidos reflejados`];
+  if (state.apiStandingsAt) {
+    parts.push(`API · ${formatTime(new Date(state.apiStandingsAt))}`);
+  }
+  el.textContent = parts.join(' · ');
+}
+
+function buildStandingsRow(row, rank) {
+  const zoneClass = rank <= 2 ? 'zone-qualify' : rank === 3 ? 'zone-playoff' : '';
+  const name = displayTeamName(row.team);
+  const dif = row.dif > 0 ? `+${row.dif}` : String(row.dif);
+  return `
+    <tr class="standings-row ${zoneClass}">
+      <td class="col-rank">${rank}</td>
+      <td class="col-team">
+        <div class="standings-team-cell">
+          <span class="standings-flag">${teamFlag(row.team)}</span>
+          <span class="standings-team">${name}</span>
+        </div>
+      </td>
+      <td class="col-stat">${row.j}</td>
+      <td class="col-stat">${row.g}</td>
+      <td class="col-stat">${row.e}</td>
+      <td class="col-stat">${row.p}</td>
+      <td class="col-stat">${row.gf}</td>
+      <td class="col-stat">${row.gc}</td>
+      <td class="col-stat">${dif}</td>
+      <td class="col-pts col-stat">${row.pts}</td>
+    </tr>`;
+}
+
+function buildGroupCard(letter, rows) {
+  const body = rows.map((row, i) => buildStandingsRow(row, i + 1)).join('');
+  return `
+    <article class="group-card">
+      <h3 class="group-card-title">GRUPO ${letter}</h3>
+      <div class="standings-wrap">
+        <table class="standings-table">
+          <colgroup>
+            <col class="col-rank-col">
+            <col class="col-team-col">
+            <col class="col-stat-col" span="8">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="col-rank">#</th>
+              <th class="col-team">Equipo</th>
+              <th class="col-stat">J</th>
+              <th class="col-stat">G</th>
+              <th class="col-stat">E</th>
+              <th class="col-stat">P</th>
+              <th class="col-stat">GF</th>
+              <th class="col-stat">GC</th>
+              <th class="col-stat">+/-</th>
+              <th class="col-pts col-stat">PTS</th>
+            </tr>
+          </thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </article>`;
+}
+
+function renderGrupos() {
+  const el = document.getElementById('gruposContent');
+  if (!el) return;
+
+  const local = computeGroupStandings(state.partidos);
+  const standings = mergeStandings(local, state.apiStandings);
+
+  el.innerHTML = GROUP_LETTERS.map(letter =>
+    buildGroupCard(letter, standings[letter])
+  ).join('');
+
+  formatGruposUpdated();
+}
+
+// ============================================================
 // Navegación
 // ============================================================
 function switchView(viewKey) {
-  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo' };
+  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo', grupos: 'viewGrupos' };
   const target = views[viewKey] ? viewKey : 'podio';
+  state.activeView = target;
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
   if (target === 'quiniela') {
     renderDayTabs();
     renderPersonDetail();
+    stopGruposPolling();
+  } else if (target === 'grupos') {
+    renderGrupos();
+    startGruposPolling();
+  } else {
+    stopGruposPolling();
   }
   if (target === 'podio') renderPodio(true);
   updateJumpButton();

@@ -968,9 +968,46 @@ body.admin-mode {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
-  text-align: center;
   letter-spacing: 0.02em;
   text-transform: capitalize;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.match-datetime-text {
+  margin-left: auto;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.match-group-chip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(20, 18, 31, 0.1);
+  border: 1px solid rgba(20, 18, 31, 0.14);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.match-card.state-win .match-group-chip,
+.match-card.state-lose .match-group-chip,
+.match-card.state-pending .match-group-chip,
+.match-card.state-live .match-group-chip,
+.match-card.editable-card .match-group-chip,
+.match-card.editable-admin-card .match-group-chip {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.24);
+  color: #fff;
 }
 
 .match-card.state-win .match-datetime {
@@ -2251,4 +2288,187 @@ body.admin-mode {
   .podium-block.block-3 { height: 56px; }
   .marcador-name { font-size: 0.95rem; }
   .info-hero-title { font-size: 1.7rem; }
+}
+
+/* ── Tablas de grupos ── */
+#viewGrupos.active {
+  display: block;
+}
+
+.grupos-header {
+  margin-bottom: 14px;
+}
+
+.grupos-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.grupos-subtitle {
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.grupos-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.group-card {
+  background: #151b22;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.18);
+}
+
+.group-card-title {
+  padding: 12px 14px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.standings-wrap {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.standings-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.standings-table col.col-rank-col {
+  width: 22px;
+}
+
+.standings-table col.col-stat-col {
+  width: 24px;
+}
+
+.standings-table thead th {
+  padding: 0 3px 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.42);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.standings-table thead th.col-team,
+.standings-table thead th.col-rank {
+  text-align: left;
+}
+
+.standings-table thead th.col-rank {
+  padding-left: 10px;
+  padding-right: 2px;
+}
+
+.standings-table thead th.col-team {
+  padding-right: 6px;
+}
+
+.standings-table tbody td {
+  padding: 8px 3px;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.standings-table thead th.col-stat,
+.standings-table tbody td.col-stat {
+  padding-left: 1px;
+  padding-right: 1px;
+}
+
+.standings-row.zone-qualify td {
+  background: rgba(30, 111, 217, 0.14);
+}
+
+.standings-row.zone-qualify td:first-child {
+  box-shadow: inset 3px 0 0 #3b82f6;
+}
+
+.standings-row.zone-playoff td {
+  background: rgba(180, 130, 40, 0.16);
+}
+
+.standings-row.zone-playoff td:first-child {
+  box-shadow: inset 3px 0 0 #d4a017;
+}
+
+.col-rank {
+  padding-left: 10px !important;
+  padding-right: 0 !important;
+  text-align: left !important;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.col-team {
+  text-align: left !important;
+  padding-right: 4px !important;
+  overflow: hidden;
+}
+
+.col-pts {
+  font-weight: 800;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.standings-table thead th.col-pts {
+  font-size: 0.65rem;
+}
+
+.standings-table tbody td.col-team {
+  text-align: left !important;
+}
+
+.standings-team-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+
+.standings-flag {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.standings-team {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  font-size: 0.82rem;
+  min-width: 0;
+}
+
+.bottom-nav .nav-btn {
+  font-size: 0.6rem;
+}
+
+.bottom-nav .nav-btn svg {
+  width: 20px;
+  height: 20px;
 }

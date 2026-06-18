@@ -221,3 +221,226 @@ export function formatDayTabCDMX(date) {
     timeZone: 'America/Mexico_City',
   }).replace('.', '');
 }
+
+// ============================================================
+// Grupos — composición oficial fase de grupos (nombres en español)
+// ============================================================
+export const GROUPS = {
+  A: ['México', 'Sudáfrica', 'Corea del Sur', 'Chequia'],
+  B: ['Canadá', 'Bosnia y Herzegovina', 'Catar', 'Suiza'],
+  C: ['Brasil', 'Marruecos', 'Haití', 'Escocia'],
+  D: ['Estados Unidos', 'Paraguay', 'Australia', 'Turquía'],
+  E: ['Alemania', 'Curazao', 'Costa de Marfil', 'Ecuador'],
+  F: ['Países Bajos', 'Japón', 'Suecia', 'Túnez'],
+  G: ['España', 'Cabo Verde', 'Arabia Saudita', 'Uruguay'],
+  H: ['Bélgica', 'Egipto', 'Irán', 'Nueva Zelanda'],
+  I: ['Francia', 'Senegal', 'Noruega', 'Irak'],
+  J: ['Argentina', 'Argelia', 'Austria', 'Jordania'],
+  K: ['Portugal', 'RD Congo', 'Colombia', 'Uzbekistán'],
+  L: ['Inglaterra', 'Croacia', 'Ghana', 'Panamá'],
+};
+
+export const GROUP_LETTERS = Object.keys(GROUPS);
+
+const TEAM_FLAGS = {
+  mexico: '🇲🇽',
+  sudafrica: '🇿🇦',
+  'corea del sur': '🇰🇷',
+  chequia: '🇨🇿',
+  canada: '🇨🇦',
+  'bosnia y herzegovina': '🇧🇦',
+  catar: '🇶🇦',
+  suiza: '🇨🇭',
+  brasil: '🇧🇷',
+  marruecos: '🇲🇦',
+  haiti: '🇭🇹',
+  escocia: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+  paraguay: '🇵🇾',
+  'estados unidos': '🇺🇸',
+  australia: '🇦🇺',
+  turquia: '🇹🇷',
+  alemania: '🇩🇪',
+  curazao: '🇨🇼',
+  'costa de marfil': '🇨🇮',
+  ecuador: '🇪🇨',
+  'paises bajos': '🇳🇱',
+  japon: '🇯🇵',
+  suecia: '🇸🇪',
+  tunez: '🇹🇳',
+  espana: '🇪🇸',
+  'cabo verde': '🇨🇻',
+  belgica: '🇧🇪',
+  egipto: '🇪🇬',
+  iran: '🇮🇷',
+  'nueva zelanda': '🇳🇿',
+  'arabia saudita': '🇸🇦',
+  uruguay: '🇺🇾',
+  francia: '🇫🇷',
+  senegal: '🇸🇳',
+  irak: '🇮🇶',
+  noruega: '🇳🇴',
+  argentina: '🇦🇷',
+  argelia: '🇩🇿',
+  austria: '🇦🇹',
+  jordania: '🇯🇴',
+  portugal: '🇵🇹',
+  'rd congo': '🇨🇩',
+  uzbekistan: '🇺🇿',
+  colombia: '🇨🇴',
+  inglaterra: '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  croacia: '🇭🇷',
+  ghana: '🇬🇭',
+  panama: '🇵🇦',
+};
+
+const TEAM_DISPLAY = (() => {
+  const map = {};
+  for (const teams of Object.values(GROUPS)) {
+    for (const name of teams) map[normTeam(name)] = name;
+  }
+  return map;
+})();
+
+/** Nombre en español para mostrar (acepta nombre en es/en). */
+export function displayTeamName(name) {
+  const canon = normTeam(name);
+  return TEAM_DISPLAY[canon] || name;
+}
+
+/** Bandera emoji del equipo. */
+export function teamFlag(name) {
+  return TEAM_FLAGS[normTeam(name)] || '⚽';
+}
+
+function emptyStandingRow(team) {
+  return { team, j: 0, g: 0, e: 0, p: 0, gf: 0, gc: 0, dif: 0, pts: 0 };
+}
+
+function findGroupLetter(teamA, teamB) {
+  const na = normTeam(teamA);
+  const nb = normTeam(teamB);
+  for (const [letter, teams] of Object.entries(GROUPS)) {
+    const canon = teams.map(normTeam);
+    if (canon.includes(na) && canon.includes(nb)) return letter;
+  }
+  return null;
+}
+
+/** Letra de grupo (A–L) para un partido, o null si no se reconoce. */
+export function getMatchGroup(local, visitante) {
+  return findGroupLetter(local, visitante);
+}
+
+function sortStandingsRows(rows) {
+  return rows.slice().sort((a, b) => {
+    if (b.pts !== a.pts) return b.pts - a.pts;
+    if (b.dif !== a.dif) return b.dif - a.dif;
+    if (b.gf !== a.gf) return b.gf - a.gf;
+    return displayTeamName(a.team).localeCompare(displayTeamName(b.team), 'es');
+  });
+}
+
+function applyMatchResult(rowsByCanon, local, visitante, gl, gv) {
+  const home = rowsByCanon[normTeam(local)];
+  const away = rowsByCanon[normTeam(visitante)];
+  if (!home || !away) return;
+
+  home.j += 1;
+  away.j += 1;
+  home.gf += gl;
+  home.gc += gv;
+  away.gf += gv;
+  away.gc += gl;
+  home.dif = home.gf - home.gc;
+  away.dif = away.gf - away.gc;
+
+  if (gl > gv) {
+    home.g += 1;
+    home.pts += 3;
+    away.p += 1;
+  } else if (gl < gv) {
+    away.g += 1;
+    away.pts += 3;
+    home.p += 1;
+  } else {
+    home.e += 1;
+    away.e += 1;
+    home.pts += 1;
+    away.pts += 1;
+  }
+}
+
+/** Calcula tablas de grupo a partir de partidos con resultado (Firestore). */
+export function computeGroupStandings(partidos) {
+  const standings = {};
+  for (const letter of GROUP_LETTERS) {
+    standings[letter] = GROUPS[letter].map(emptyStandingRow);
+  }
+
+  for (const m of partidos) {
+    if (m.golesLocal === null || m.golesVisitante === null) continue;
+    const gl = Number(m.golesLocal);
+    const gv = Number(m.golesVisitante);
+    if (!Number.isFinite(gl) || !Number.isFinite(gv)) continue;
+
+    const letter = findGroupLetter(m.local, m.visitante);
+    if (!letter) continue;
+
+    const rowsByCanon = {};
+    for (const row of standings[letter]) {
+      rowsByCanon[normTeam(row.team)] = row;
+    }
+    applyMatchResult(rowsByCanon, m.local, m.visitante, gl, gv);
+  }
+
+  for (const letter of GROUP_LETTERS) {
+    standings[letter] = sortStandingsRows(standings[letter]);
+  }
+  return standings;
+}
+
+/** Convierte respuesta de wcup2026.org a tablas con nombres en español. */
+export function parseApiStandings(apiStandings) {
+  const standings = {};
+  for (const letter of GROUP_LETTERS) {
+    const key = `Group ${letter}`;
+    const rows = apiStandings?.[key] || [];
+    const byCanon = {};
+    for (const row of rows) {
+      byCanon[normTeam(row.team)] = {
+        team: displayTeamName(row.team),
+        j: row.p ?? 0,
+        g: row.w ?? 0,
+        e: row.d ?? 0,
+        p: row.l ?? 0,
+        gf: row.gf ?? 0,
+        gc: row.ga ?? 0,
+        dif: row.gd ?? 0,
+        pts: row.pts ?? 0,
+      };
+    }
+    standings[letter] = sortStandingsRows(
+      GROUPS[letter].map(team => byCanon[normTeam(team)] || emptyStandingRow(team))
+    );
+  }
+  return standings;
+}
+
+function totalPlayed(rows) {
+  return rows.reduce((sum, r) => sum + r.j, 0);
+}
+
+/** Prefiere la fuente con más partidos jugados por grupo; empate → Firestore. */
+export function mergeStandings(localStandings, apiStandings) {
+  const merged = {};
+  for (const letter of GROUP_LETTERS) {
+    const local = localStandings[letter] || GROUPS[letter].map(emptyStandingRow);
+    const remote = apiStandings?.[letter];
+    if (!remote) {
+      merged[letter] = local;
+      continue;
+    }
+    merged[letter] = totalPlayed(remote) > totalPlayed(local) ? remote : local;
+  }
+  return merged;
+}
