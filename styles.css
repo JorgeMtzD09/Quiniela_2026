@@ -1058,6 +1058,7 @@ body.admin-mode {
 .match-card.state-lose .team-name,
 .match-card.state-pending .team-name,
 .match-card.state-live .team-name,
+.match-card.state-halftime .team-name,
 .match-card.editable-card .team-name {
   color: #fff;
 }
@@ -1066,6 +1067,7 @@ body.admin-mode {
 .match-card.state-lose .match-vs,
 .match-card.state-pending .match-vs,
 .match-card.state-live .match-vs,
+.match-card.state-halftime .match-vs,
 .match-card.editable-card .match-vs {
   color: rgba(255, 255, 255, 0.68);
 }
@@ -1098,6 +1100,32 @@ body.admin-mode {
   border-bottom-color: transparent;
   color: #fff;
   font-weight: 700;
+}
+
+/* Medio tiempo */
+.match-card.state-halftime {
+  background: linear-gradient(145deg, #b8860b 0%, #8b6914 42%, #1e2430 100%);
+  border: 1px solid rgba(212, 160, 23, 0.35);
+  color: #fff;
+}
+
+.match-card.state-halftime .match-datetime {
+  background: linear-gradient(90deg, #d4a017, #b8860b);
+  border-bottom-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+
+.match-card.state-halftime .match-group-chip,
+.match-card.state-halftime .score-row.live-score,
+.match-card.state-halftime .score-row.halftime-score {
+  border-color: rgba(212, 160, 23, 0.45);
+}
+
+.match-card.state-halftime .match-points.pts-live {
+  background: linear-gradient(90deg, #d4a017, #b8860b);
+  box-shadow: 0 2px 8px rgba(212, 160, 23, 0.28);
+  animation: none;
 }
 
 @keyframes live-card-pulse {
@@ -1372,6 +1400,17 @@ body.admin-mode {
   background: rgba(0, 0, 0, 0.3);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: none;
+}
+
+.match-card.state-live .score-row.live-score {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.2);
+}
+
+.match-card.state-halftime .score-row.halftime-score {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(212, 160, 23, 0.4);
+  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.18);
 }
 
 /* Edición por partido */
