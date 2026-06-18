@@ -1003,6 +1003,7 @@ body.admin-mode {
 .match-card.state-lose .match-group-chip,
 .match-card.state-pending .match-group-chip,
 .match-card.state-live .match-group-chip,
+.match-card.state-halftime .match-group-chip,
 .match-card.editable-card .match-group-chip,
 .match-card.editable-admin-card .match-group-chip {
   background: rgba(255, 255, 255, 0.18);
@@ -1102,32 +1103,6 @@ body.admin-mode {
   font-weight: 700;
 }
 
-/* Medio tiempo */
-.match-card.state-halftime {
-  background: linear-gradient(145deg, #b8860b 0%, #8b6914 42%, #1e2430 100%);
-  border: 1px solid rgba(212, 160, 23, 0.35);
-  color: #fff;
-}
-
-.match-card.state-halftime .match-datetime {
-  background: linear-gradient(90deg, #d4a017, #b8860b);
-  border-bottom-color: transparent;
-  color: #fff;
-  font-weight: 700;
-}
-
-.match-card.state-halftime .match-group-chip,
-.match-card.state-halftime .score-row.live-score,
-.match-card.state-halftime .score-row.halftime-score {
-  border-color: rgba(212, 160, 23, 0.45);
-}
-
-.match-card.state-halftime .match-points.pts-live {
-  background: linear-gradient(90deg, #d4a017, #b8860b);
-  box-shadow: 0 2px 8px rgba(212, 160, 23, 0.28);
-  animation: none;
-}
-
 @keyframes live-card-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0), var(--shadow); }
   50% { box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.28), var(--shadow); }
@@ -1141,6 +1116,47 @@ body.admin-mode {
   color: #fff;
   box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
   animation: live-badge-pulse 1.5s ease-in-out infinite;
+}
+
+/* Medio tiempo */
+.match-card.state-halftime {
+  background: linear-gradient(145deg, #b45309 0%, #d97706 48%, #92400e 100%);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  color: #fff;
+}
+
+.match-card.state-halftime .match-datetime {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  border-bottom-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+
+.match-card.state-halftime .match-group-chip,
+.match-card.state-halftime .team-name,
+.match-card.state-halftime .match-vs {
+  color: #fff;
+}
+
+.match-card.state-halftime .score-row.pred {
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.match-card.state-halftime .score-row.pred .score-row-label,
+.match-card.state-halftime .score-row.pred .score-num {
+  color: #fff;
+}
+
+.match-card.state-halftime .score-row.real {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.match-points.pts-halftime {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.35);
 }
 
 @keyframes live-badge-pulse {
@@ -1161,6 +1177,7 @@ body.admin-mode {
 
 @media (prefers-reduced-motion: reduce) {
   .match-card.state-live,
+  .match-card.state-halftime,
   .match-points.pts-live,
   .live-ball,
   .podium-block.block-1::before,
@@ -1400,17 +1417,6 @@ body.admin-mode {
   background: rgba(0, 0, 0, 0.3);
   border-color: rgba(255, 255, 255, 0.2);
   box-shadow: none;
-}
-
-.match-card.state-live .score-row.live-score {
-  border-color: rgba(6, 182, 212, 0.45);
-  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.2);
-}
-
-.match-card.state-halftime .score-row.halftime-score {
-  background: rgba(0, 0, 0, 0.28);
-  border-color: rgba(212, 160, 23, 0.4);
-  box-shadow: 0 0 0 1px rgba(212, 160, 23, 0.18);
 }
 
 /* Edición por partido */
@@ -1980,6 +1986,49 @@ body.admin-mode {
   background: #fef2f2;
   color: var(--danger);
   border-color: #fecaca;
+}
+
+.admin-live-phase {
+  display: flex;
+  margin: 12px 14px 0;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #f3f4f6;
+}
+
+.admin-phase-opt {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-phase-opt.active {
+  background: linear-gradient(90deg, #06b6d4, #0891b2);
+  color: #fff;
+}
+
+.admin-phase-opt[data-phase="medio_tiempo"].active {
+  background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.admin-phase-opt:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.editable-admin-card.locked .admin-live-phase {
+  pointer-events: none;
+  opacity: 0.45;
 }
 
 /* Botón flotante: ir al partido actual */

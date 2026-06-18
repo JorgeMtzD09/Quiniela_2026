@@ -2,8 +2,6 @@ import {
   formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX,
   GROUP_LETTERS, computeGroupStandings, parseApiStandings, mergeStandings,
   displayTeamName, teamFlag, getMatchGroup,
-  parseApiScores, mergePartidosWithApiScores,
-  findApiMatchForPartido, getApiScoreForPartido, formatLiveStatusLabel,
 } from './fixtures-data.js';
 
 // ============================================================
@@ -24,8 +22,7 @@ const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
 const STANDINGS_API_URL = 'https://wcup2026.org/api/data.php?action=standings';
-const LIVE_SCORES_API_URL = 'https://wcup2026.org/api/data.php?action=all';
-const LIVE_POLL_MS = 30000;
+const STANDINGS_POLL_MS = 60000;
 const MATCH_LOCK_INTERVAL_MS = 30000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
@@ -79,21 +76,11 @@ let state = {
   clockOffset: 0,
   apiStandings: null,
   apiStandingsAt: null,
-  apiScores: null,
-  apiScoresAt: null,
   activeView: 'info',
-  livePollTimer: null,
+  gruposPollTimer: null,
 };
 
 let matchLockTimer = null;
-
-function getPartidos() {
-  return mergePartidosWithApiScores(state.partidos, state.apiScores);
-}
-
-function refreshPodioFromScores() {
-  state.podio = buildPodio(getPartidos(), state.participantes, state.pronosticos);
-}
 
 // ============================================================
 // Hora de referencia (internet)
@@ -131,14 +118,17 @@ function matchStarted(m) {
   return nowMs() >= m.fecha.getTime();
 }
 
-// Partido en juego: ya inició, sigue dentro de la ventana de 1h45 y aún sin resultado final
+// Partido en juego: ya inició, sigue dentro de la ventana de 2h y aún sin resultado final
 function matchLive(m) {
-  if (m?.apiLive && m.liveScore) return true;
   if (!m?.fecha) return false;
   if (m.golesLocal !== null) return false;
   const start = m.fecha.getTime();
   const now = nowMs();
   return now >= start && now < start + MATCH_DURATION_MS;
+}
+
+function matchHalftime(m) {
+  return matchLive(m) && m.faseEnVivo === 'medio_tiempo';
 }
 
 function formatMatchDate(d) {
@@ -232,7 +222,7 @@ async function login(usuario, password) {
 function logout() {
   teardownListeners();
   stopMatchLockTimer();
-  stopLivePolling();
+  stopGruposPolling();
   clearSession();
   state.selectedPerson = null;
   state.editingMatchId = null;
@@ -244,8 +234,6 @@ function logout() {
   state.podio = [];
   state.apiStandings = null;
   state.apiStandingsAt = null;
-  state.apiScores = null;
-  state.apiScoresAt = null;
   closeModal();
   document.body.classList.remove('admin-mode');
   updateHeaderSession();
@@ -290,7 +278,7 @@ function applyData(partidos, participantes, pronosticos, meta) {
   state.participantes = participantes;
   state.pronosticos = pronosticos;
   state.pronosticosMeta = meta;
-  state.podio = buildPodio(getPartidos(), state.participantes, state.pronosticos);
+  state.podio = buildPodio(state.partidos, state.participantes, state.pronosticos);
 
   if (!state.selectedPerson) {
     if (state.session && participantes.some(p => p.clave === state.session.clave)) {
@@ -350,8 +338,6 @@ function subscribeFirestore() {
       maybeUpdate();
     }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
   );
-
-  startLivePolling();
 }
 
 function parsePartidoDoc(d) {
@@ -363,6 +349,7 @@ function parsePartidoDoc(d) {
     visitante: m.visitante,
     golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
     golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
+    faseEnVivo: m.faseEnVivo === 'medio_tiempo' ? 'medio_tiempo' : null,
     fecha: parsePartidoFecha(m.fecha),
   };
 }
@@ -382,8 +369,6 @@ function subscribeAdmin() {
       setStatus('Error al leer partidos', 'error');
     })
   );
-
-  startLivePolling();
 }
 
 async function saveMatchResult(docId, gl, gv) {
@@ -394,43 +379,41 @@ async function saveMatchResult(docId, gl, gv) {
   await updateDoc(doc(db, 'partidos', docId), {
     golesLocal: gl,
     golesVisitante: gv,
+    faseEnVivo: null,
   });
 }
 
-async function syncFinishedScoresToFirestore() {
-  if (!db || !state.apiScores?.size || !state.partidos.length) return;
+async function saveMatchLivePhase(docId, faseEnVivo) {
+  if (!isAdminSession()) throw new Error('Sin permisos de admin');
+  if (!db) throw new Error('Sin conexión');
 
   const { doc, updateDoc } = firestoreFns;
-  const writes = [];
-
-  for (const m of state.partidos) {
-    if (m.golesLocal !== null) continue;
-    const api = findApiMatchForPartido(m, state.apiScores);
-    if (!api || api.status !== 'finished' || !Array.isArray(api.score)) continue;
-
-    const { gl, gv } = getApiScoreForPartido(m, api);
-    const docId = m.docId || String(m.id);
-    writes.push(
-      updateDoc(doc(db, 'partidos', docId), {
-        golesLocal: gl,
-        golesVisitante: gv,
-      }).catch(err => {
-        console.warn(`No se pudo guardar resultado del partido ${m.id}:`, err);
-      })
-    );
-  }
-
-  if (writes.length) await Promise.all(writes);
+  await updateDoc(doc(db, 'partidos', docId), {
+    faseEnVivo: faseEnVivo === 'medio_tiempo' ? 'medio_tiempo' : null,
+  });
 }
 
 function buildAdminMatchCard(m) {
   const isPlayed = m.golesLocal !== null;
+  const isLive = !isPlayed && matchLive(m);
+  const isHalftime = matchHalftime(m);
   const glVal = m.golesLocal != null ? m.golesLocal : '';
   const gvVal = m.golesVisitante != null ? m.golesVisitante : '';
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
   const statusHTML = isPlayed
     ? `<span class="match-points pts-saved">Resultado: ${m.golesLocal} - ${m.golesVisitante}</span>`
-    : `<span class="match-points pts-pending">Sin resultado</span>`;
+    : isHalftime
+      ? `<span class="match-points pts-halftime">Medio tiempo</span>`
+      : isLive
+        ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
+        : `<span class="match-points pts-pending">Sin resultado</span>`;
+  const livePhaseHTML = isLive
+    ? `
+      <div class="admin-live-phase" role="group" aria-label="Estado en vivo">
+        <button type="button" class="admin-phase-opt${!isHalftime ? ' active' : ''}" data-phase="jugando">Jugando ahora</button>
+        <button type="button" class="admin-phase-opt${isHalftime ? ' active' : ''}" data-phase="medio_tiempo">Medio tiempo</button>
+      </div>`
+    : '';
 
   return `
     <div class="match-card form-card editable-admin-card ${isPlayed ? 'admin-played' : 'admin-pending'}" data-doc-id="${m.docId}">
@@ -447,6 +430,7 @@ function buildAdminMatchCard(m) {
                  name="admin_v_${m.docId}" inputmode="numeric" placeholder="-" value="${gvVal}">
         </div>
       </div>
+      ${livePhaseHTML}
       <div class="admin-footer">
         ${statusHTML}
         ${isPlayed ? '<button type="button" class="btn-reset-admin" title="Dejar el partido sin resultado">Restaurar</button>' : ''}
@@ -509,7 +493,33 @@ function attachAdminListeners() {
     if (cancel) cancel.addEventListener('click', () => exitAdminEditMode(true));
     if (save) save.addEventListener('click', () => openAdminConfirm(docId));
     if (reset) reset.addEventListener('click', () => openAdminResetConfirm(docId));
+    card.querySelectorAll('.admin-phase-opt').forEach(btn => {
+      btn.addEventListener('click', () => setAdminLivePhase(docId, btn.dataset.phase));
+    });
   });
+}
+
+async function setAdminLivePhase(docId, phase) {
+  const m = state.partidos.find(x => x.docId === docId);
+  if (!m || m.golesLocal !== null || !matchLive(m)) return;
+
+  const target = phase === 'medio_tiempo' ? 'medio_tiempo' : null;
+  if (m.faseEnVivo === target) return;
+
+  const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
+  card?.querySelectorAll('.admin-phase-opt').forEach(b => { b.disabled = true; });
+
+  try {
+    await saveMatchLivePhase(docId, target);
+    m.faseEnVivo = target;
+    renderAdmin();
+    showToast(target === 'medio_tiempo' ? 'Medio tiempo' : 'Jugando ahora', false);
+  } catch (err) {
+    showToast(err.message || 'No se pudo cambiar el estado', true);
+    renderAdmin();
+  } finally {
+    card?.querySelectorAll('.admin-phase-opt').forEach(b => { b.disabled = false; });
+  }
 }
 
 function enterAdminEditMode(docId) {
@@ -1026,14 +1036,13 @@ function getMatchDayGroups(partidos) {
 }
 
 function ensureSelectedDay() {
-  const partidos = getPartidos();
-  const groups = getMatchDayGroups(partidos);
+  const groups = getMatchDayGroups(state.partidos);
   if (!groups.length) return;
   if (state.selectedDay && groups.some(g => g.key === state.selectedDay)) return;
 
   const currentId = getCurrentMatchId();
   if (currentId != null) {
-    const m = partidos.find(x => x.id === currentId);
+    const m = state.partidos.find(x => x.id === currentId);
     if (m?.fecha) {
       state.selectedDay = dayKeyCDMX(m.fecha);
       return;
@@ -1045,7 +1054,7 @@ function ensureSelectedDay() {
 function renderDayTabs() {
   const el = document.getElementById('dayTabs');
   if (!el) return;
-  const groups = getMatchDayGroups(getPartidos());
+  const groups = getMatchDayGroups(state.partidos);
   if (!groups.length) {
     el.innerHTML = '';
     return;
@@ -1134,20 +1143,18 @@ function renderPersonDetail({ resetScroll = false } = {}) {
 
   const playedCountEl = document.getElementById('playedCount');
   if (playedCountEl) {
-    const partidos = getPartidos();
-    const played = partidos.filter(m => m.golesLocal !== null).length;
-    playedCountEl.textContent = `${played}/${partidos.length}`;
+    const played = state.partidos.filter(m => m.golesLocal !== null).length;
+    playedCountEl.textContent = `${played}/${state.partidos.length}`;
   }
 
   const ctx = { isOwn, savedItems, predMap };
   ensureSelectedDay();
-  const allPartidos = getPartidos();
   const dayMatches = state.selectedDay
-    ? allPartidos.filter(m => {
+    ? state.partidos.filter(m => {
       const key = m.fecha ? dayKeyCDMX(m.fecha) : '__sin_fecha__';
       return key === state.selectedDay;
     })
-    : allPartidos;
+    : state.partidos;
   document.getElementById('personContent').innerHTML = renderMatchesFlat(dayMatches, ctx);
 
   attachEditingListeners();
@@ -1164,7 +1171,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
 // "Guardado" (con pronóstico) o "Por jugar" (sin pronóstico), es decir,
 // el primero después del último ya jugado con resultado.
 function getCurrentMatchId() {
-  const target = getPartidos().find(m => m.golesLocal === null);
+  const target = state.partidos.find(m => m.golesLocal === null);
   return target ? target.id : null;
 }
 
@@ -1181,7 +1188,7 @@ function getCurrentMatchCard() {
 function ensureDayForCurrentMatch() {
   const id = getCurrentMatchId();
   if (id == null) return false;
-  const m = getPartidos().find(x => x.id === id);
+  const m = state.partidos.find(x => x.id === id);
   if (!m?.fecha) return false;
   const day = dayKeyCDMX(m.fecha);
   if (state.selectedDay === day) return false;
@@ -1260,7 +1267,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
 
   // Editable: es tu propia quiniela, partido no jugado, sin pronóstico guardado y antes del kickoff
-  if (isOwn && !isPlayed && !saved && !matchStarted(m) && !m.apiLive) {
+  if (isOwn && !isPlayed && !saved && !matchStarted(m)) {
     return `
       <div class="match-card form-card editable-card" data-match-id="${m.id}">
         ${matchDatetimeHTML(m)}
@@ -1282,29 +1289,25 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   }
 
   // Solo lectura
-  const isLive = !isPlayed && (m.apiLive || matchLive(m));
-  const hasLiveScore = !isPlayed && !!m.liveScore;
-  const livePhase = m.liveScore?.phase;
-  const liveStatusLabel = hasLiveScore ? formatLiveStatusLabel(m.liveScore) : '';
+  const isLive = !isPlayed && matchLive(m);
+  const isHalftime = matchHalftime(m);
   const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
-  const realL = isPlayed ? m.golesLocal : (hasLiveScore ? m.liveScore.local : '–');
-  const realV = isPlayed ? m.golesVisitante : (hasLiveScore ? m.liveScore.visitante : '–');
-  const realLabel = isPlayed ? 'Resultado' : (hasLiveScore ? liveStatusLabel : 'Resultado');
-  const realEmpty = !isPlayed && !hasLiveScore;
+  const realL = isPlayed ? m.golesLocal : '–';
+  const realV = isPlayed ? m.golesVisitante : '–';
   let stateClass = 'state-pending';
   if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
-  else if (isLive) stateClass = livePhase === 'halftime' ? 'state-halftime' : 'state-live';
+  else if (isHalftime) stateClass = 'state-halftime';
+  else if (isLive) stateClass = 'state-live';
   let ptsHTML;
   if (isPlayed) {
     ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
+  } else if (isHalftime) {
+    ptsHTML = `<span class="match-points pts-halftime">Medio tiempo</span>`;
   } else if (isLive) {
-    const badge = livePhase === 'halftime'
-      ? 'Medio tiempo'
-      : `Jugando ahora · ${liveStatusLabel}`;
-    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> ${badge}</span>`;
+    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
   } else {
@@ -1321,10 +1324,10 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
           <span class="score-row-label">Pronóstico</span>
           <span class="score-num ${hasPred ? '' : 'empty'}">${predV}</span>
         </div>
-        <div class="score-row real${hasLiveScore ? ' live-score' : ''}${livePhase === 'halftime' ? ' halftime-score' : ''}">
-          <span class="score-num ${realEmpty ? 'empty' : ''}">${realL}</span>
-          <span class="score-row-label">${realLabel}</span>
-          <span class="score-num ${realEmpty ? 'empty' : ''}">${realV}</span>
+        <div class="score-row real">
+          <span class="score-num ${isPlayed ? '' : 'empty'}">${realL}</span>
+          <span class="score-row-label">Resultado</span>
+          <span class="score-num ${isPlayed ? '' : 'empty'}">${realV}</span>
         </div>
       </div>
       <div class="match-footer">${ptsHTML}</div>
@@ -1502,57 +1505,8 @@ function formatTime(date) {
 }
 
 // ============================================================
-// Datos externos en vivo (marcadores + tablas)
+// Tablas de grupos
 // ============================================================
-async function fetchApiScores() {
-  try {
-    const res = await fetch(LIVE_SCORES_API_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error('API no disponible');
-    const data = await res.json();
-    if (!data.ok || !Array.isArray(data.matches)) throw new Error('Respuesta inválida');
-    state.apiScores = parseApiScores(data.matches);
-    state.apiScoresAt = Date.now();
-    return true;
-  } catch (err) {
-    console.warn('Marcadores en vivo no disponibles:', err);
-    return false;
-  }
-}
-
-async function syncExternalData() {
-  const [scoresOk, standingsOk] = await Promise.all([
-    fetchApiScores(),
-    fetchApiStandings(),
-  ]);
-  return scoresOk || standingsOk;
-}
-
-function stopLivePolling() {
-  if (state.livePollTimer) {
-    clearInterval(state.livePollTimer);
-    state.livePollTimer = null;
-  }
-}
-
-function onExternalDataUpdated() {
-  syncFinishedScoresToFirestore().finally(() => {
-    refreshPodioFromScores();
-    renderAll();
-    setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-  });
-}
-
-function startLivePolling() {
-  stopLivePolling();
-  syncExternalData().then(ok => {
-    if (ok) onExternalDataUpdated();
-  });
-  state.livePollTimer = setInterval(async () => {
-    const ok = await syncExternalData();
-    if (ok) onExternalDataUpdated();
-  }, LIVE_POLL_MS);
-}
-
 async function fetchApiStandings() {
   try {
     const res = await fetch(STANDINGS_API_URL, { cache: 'no-store' });
@@ -1568,17 +1522,34 @@ async function fetchApiStandings() {
   }
 }
 
+function stopGruposPolling() {
+  if (state.gruposPollTimer) {
+    clearInterval(state.gruposPollTimer);
+    state.gruposPollTimer = null;
+  }
+}
+
+function startGruposPolling() {
+  stopGruposPolling();
+  fetchApiStandings().then(ok => {
+    if (ok && state.activeView === 'grupos') renderGrupos();
+  });
+  state.gruposPollTimer = setInterval(async () => {
+    if (state.activeView !== 'grupos') return;
+    const ok = await fetchApiStandings();
+    if (ok) renderGrupos();
+  }, STANDINGS_POLL_MS);
+}
+
 function formatGruposUpdated() {
   const el = document.getElementById('gruposUpdated');
   if (!el) return;
-  const local = computeGroupStandings(getPartidos());
+  const local = computeGroupStandings(state.partidos);
   const merged = mergeStandings(local, state.apiStandings);
   const played = GROUP_LETTERS.reduce((sum, l) =>
     sum + merged[l].reduce((s, r) => s + r.j, 0), 0);
   const parts = [`${played / 2 | 0} partidos reflejados`];
-  if (state.apiScoresAt) {
-    parts.push(`Marcadores · ${formatTime(new Date(state.apiScoresAt))}`);
-  } else if (state.apiStandingsAt) {
+  if (state.apiStandingsAt) {
     parts.push(`API · ${formatTime(new Date(state.apiStandingsAt))}`);
   }
   el.textContent = parts.join(' · ');
@@ -1644,7 +1615,7 @@ function renderGrupos() {
   const el = document.getElementById('gruposContent');
   if (!el) return;
 
-  const local = computeGroupStandings(getPartidos());
+  const local = computeGroupStandings(state.partidos);
   const standings = mergeStandings(local, state.apiStandings);
 
   el.innerHTML = GROUP_LETTERS.map(letter =>
@@ -1667,8 +1638,12 @@ function switchView(viewKey) {
   if (target === 'quiniela') {
     renderDayTabs();
     renderPersonDetail();
+    stopGruposPolling();
   } else if (target === 'grupos') {
     renderGrupos();
+    startGruposPolling();
+  } else {
+    stopGruposPolling();
   }
   if (target === 'podio') renderPodio(true);
   updateJumpButton();
