@@ -28,6 +28,64 @@ const MATCH_LOCK_INTERVAL_MS = 30000;
 const MATCH_DURATION_MS = 120 * 60 * 1000;
 
 // ============================================================
+// Estados de partido y helpers para estado/marcador
+// ============================================================
+// Modelo de estados de partido:
+// - pendiente: el partido no ha iniciado o no se ha capturado marcador
+// - jugando: el partido está en vivo y se puede capturar marcador en vivo
+// - medio_tiempo: fase de medio tiempo
+// - finalizado: el partido terminó, el marcador es definitivo
+const MATCH_STATUS = {
+  PENDING: 'pendiente',
+  LIVE: 'jugando',
+  HALFTIME: 'medio_tiempo',
+  FINAL: 'finalizado',
+};
+
+const MATCH_STATUS_VALUES = Object.values(MATCH_STATUS);
+
+function isValidMatchStatus(status) {
+  return MATCH_STATUS_VALUES.includes(status);
+}
+
+// Determina si estamos en la ventana de tiempo en la que un partido se considera en vivo.
+function matchInLiveWindow(m) {
+  if (!m?.fecha) return false;
+  const start = m.fecha.getTime();
+  const now = nowMs();
+  return now >= start && now < start + MATCH_DURATION_MS;
+}
+
+/**
+ * Normaliza el estado de un partido proveniente de la base de datos.
+ * Los documentos antiguos pueden no tener `estado` definido y en su lugar usan
+ * `faseEnVivo` (solo 'medio_tiempo') o infieren finalizado a partir de goles.
+ */
+function normalizeMatchStatus(m) {
+  // Si ya tiene un estado válido, úsalo tal cual.
+  if (isValidMatchStatus(m?.estado)) return m.estado;
+  // Compatibilidad con faseEnVivo: medio tiempo.
+  if (m?.faseEnVivo === 'medio_tiempo') return MATCH_STATUS.HALFTIME;
+  // Compatibilidad con datos antiguos: si se capturó marcador, se considera finalizado.
+  if (m?.golesLocal !== null || m?.golesVisitante !== null) {
+    return MATCH_STATUS.FINAL;
+  }
+  // Si está dentro de la ventana de juego, se considera en vivo.
+  if (matchInLiveWindow(m)) return MATCH_STATUS.LIVE;
+  // Por defecto, pendiente.
+  return MATCH_STATUS.PENDING;
+}
+
+// Determina si un partido ya está finalizado.
+function matchFinalized(m) {
+  return normalizeMatchStatus(m) === MATCH_STATUS.FINAL;
+}
+
+// Determina si un partido tiene marcador capturado (sin importar el estado).
+function matchHasScore(m) {
+  return m?.golesLocal !== null && m?.golesVisitante !== null;
+}
+// ============================================================
 // Firebase
 // ============================================================
 let db = null;
@@ -120,15 +178,14 @@ function matchStarted(m) {
 
 // Partido en juego: ya inició, sigue dentro de la ventana de 2h y aún sin resultado final
 function matchLive(m) {
-  if (!m?.fecha) return false;
-  if (m.golesLocal !== null) return false;
-  const start = m.fecha.getTime();
-  const now = nowMs();
-  return now >= start && now < start + MATCH_DURATION_MS;
+  // En este modelo, un partido se considera en vivo si su estado es 'jugando' o 'medio_tiempo'.
+  const status = normalizeMatchStatus(m);
+  return status === MATCH_STATUS.LIVE || status === MATCH_STATUS.HALFTIME;
 }
 
 function matchHalftime(m) {
-  return matchLive(m) && m.faseEnVivo === 'medio_tiempo';
+  // Medio tiempo únicamente cuando el estado normalizado coincide.
+  return normalizeMatchStatus(m) === MATCH_STATUS.HALFTIME;
 }
 
 function formatMatchDate(d) {
@@ -349,6 +406,8 @@ function parsePartidoDoc(d) {
     visitante: m.visitante,
     golesLocal: m.golesLocal != null && m.golesLocal !== '' ? Number(m.golesLocal) : null,
     golesVisitante: m.golesVisitante != null && m.golesVisitante !== '' ? Number(m.golesVisitante) : null,
+    // Estado explícito, solo si es uno de los valores válidos. Para documentos antiguos puede ser null.
+    estado: isValidMatchStatus(m.estado) ? m.estado : null,
     faseEnVivo: m.faseEnVivo === 'medio_tiempo' ? 'medio_tiempo' : null,
     fecha: parsePartidoFecha(m.fecha),
   };
@@ -371,15 +430,33 @@ function subscribeAdmin() {
   );
 }
 
-async function saveMatchResult(docId, gl, gv) {
+async function saveMatchResult(docId, gl, gv, estado = null) {
   if (!isAdminSession()) throw new Error('Sin permisos de admin');
   if (!db) throw new Error('Sin conexión');
 
   const { doc, updateDoc } = firestoreFns;
+  const m = state.partidos.find(x => x.docId === docId);
+
+  let nextStatus;
+  // Sin marcador -> pendiente siempre
+  if (gl === null || gv === null) {
+    nextStatus = MATCH_STATUS.PENDING;
+  } else if (isValidMatchStatus(estado)) {
+    nextStatus = estado;
+  } else {
+    // Si no se proporciona estado explícito, usa el actual normalizado
+    nextStatus = normalizeMatchStatus(m);
+  }
+  // Si se captura marcador y el estado resultante es pendiente, decide si en vivo o finalizado
+  if (gl !== null && gv !== null && nextStatus === MATCH_STATUS.PENDING) {
+    nextStatus = matchInLiveWindow(m) ? MATCH_STATUS.LIVE : MATCH_STATUS.FINAL;
+  }
+
   await updateDoc(doc(db, 'partidos', docId), {
     golesLocal: gl,
     golesVisitante: gv,
-    faseEnVivo: null,
+    estado: nextStatus,
+    faseEnVivo: nextStatus === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null,
   });
 }
 
@@ -393,27 +470,46 @@ async function saveMatchLivePhase(docId, faseEnVivo) {
   });
 }
 
+// Guardar solo el estado del partido sin tocar el marcador
+async function saveMatchStatus(docId, estado) {
+  if (!isAdminSession()) throw new Error('Sin permisos de admin');
+  if (!db) throw new Error('Sin conexión');
+  if (!isValidMatchStatus(estado)) throw new Error('Estado inválido');
+  const { doc, updateDoc } = firestoreFns;
+  await updateDoc(doc(db, 'partidos', docId), {
+    estado,
+    faseEnVivo: estado === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null,
+  });
+}
+
 function buildAdminMatchCard(m) {
-  const isPlayed = m.golesLocal !== null;
-  const isLive = !isPlayed && matchLive(m);
-  const isHalftime = matchHalftime(m);
+  const status = normalizeMatchStatus(m);
+  const isPlayed = status === MATCH_STATUS.FINAL;
+  const isLive = status === MATCH_STATUS.LIVE || status === MATCH_STATUS.HALFTIME;
+  const isHalftime = status === MATCH_STATUS.HALFTIME;
+  const hasScore = matchHasScore(m);
   const glVal = m.golesLocal != null ? m.golesLocal : '';
   const gvVal = m.golesVisitante != null ? m.golesVisitante : '';
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
-  const statusHTML = isPlayed
-    ? `<span class="match-points pts-saved">Resultado: ${m.golesLocal} - ${m.golesVisitante}</span>`
-    : isHalftime
-      ? `<span class="match-points pts-halftime">Medio tiempo</span>`
-      : isLive
-        ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
-        : `<span class="match-points pts-pending">Sin resultado</span>`;
-  const livePhaseHTML = isLive
-    ? `
-      <div class="admin-live-phase" role="group" aria-label="Estado en vivo">
-        <button type="button" class="admin-phase-opt${!isHalftime ? ' active' : ''}" data-phase="jugando">Jugando ahora</button>
-        <button type="button" class="admin-phase-opt${isHalftime ? ' active' : ''}" data-phase="medio_tiempo">Medio tiempo</button>
-      </div>`
-    : '';
+  const statusHTML = isPlayed && hasScore
+    ? `<span class="match-points pts-saved">Finalizado: ${m.golesLocal} - ${m.golesVisitante}</span>`
+    : isHalftime && hasScore
+      ? `<span class="match-points pts-halftime">Medio tiempo: ${m.golesLocal} - ${m.golesVisitante}</span>`
+      : isHalftime
+        ? `<span class="match-points pts-halftime">Medio tiempo</span>`
+        : status === MATCH_STATUS.LIVE && hasScore
+          ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> En vivo: ${m.golesLocal} - ${m.golesVisitante}</span>`
+          : status === MATCH_STATUS.LIVE
+            ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
+            : `<span class="match-points pts-pending">Sin resultado</span>`;
+  // Mostrar siempre los controles de estado para el admin
+  const livePhaseHTML = `
+      <div class="admin-live-phase" role="group" aria-label="Estado del partido">
+        <button type="button" class="admin-phase-opt${status === MATCH_STATUS.PENDING ? ' active' : ''}" data-status="pendiente">Pendiente</button>
+        <button type="button" class="admin-phase-opt${status === MATCH_STATUS.LIVE ? ' active' : ''}" data-status="jugando">Jugando ahora</button>
+        <button type="button" class="admin-phase-opt${status === MATCH_STATUS.HALFTIME ? ' active' : ''}" data-status="medio_tiempo">Medio tiempo</button>
+        <button type="button" class="admin-phase-opt${status === MATCH_STATUS.FINAL ? ' active' : ''}" data-status="finalizado">Finalizado</button>
+      </div>`;
 
   return `
     <div class="match-card form-card editable-admin-card ${isPlayed ? 'admin-played' : 'admin-pending'}" data-doc-id="${m.docId}">
@@ -494,26 +590,42 @@ function attachAdminListeners() {
     if (save) save.addEventListener('click', () => openAdminConfirm(docId));
     if (reset) reset.addEventListener('click', () => openAdminResetConfirm(docId));
     card.querySelectorAll('.admin-phase-opt').forEach(btn => {
-      btn.addEventListener('click', () => setAdminLivePhase(docId, btn.dataset.phase));
+      btn.addEventListener('click', () => setAdminMatchStatus(docId, btn.dataset.status));
     });
   });
 }
 
-async function setAdminLivePhase(docId, phase) {
+async function setAdminMatchStatus(docId, status) {
   const m = state.partidos.find(x => x.docId === docId);
-  if (!m || m.golesLocal !== null || !matchLive(m)) return;
-
-  const target = phase === 'medio_tiempo' ? 'medio_tiempo' : null;
-  if (m.faseEnVivo === target) return;
-
+  // validar partido y estado
+  if (!m || !isValidMatchStatus(status)) return;
+  const currentStatus = normalizeMatchStatus(m);
+  if (currentStatus === status) return;
+  // No se puede finalizar sin marcador
+  if (status === MATCH_STATUS.FINAL && !matchHasScore(m)) {
+    showToast('Primero captura el resultado para finalizar el partido.', true);
+    return;
+  }
+  // No se puede volver a pendiente si ya existe marcador; usar Restaurar
+  if (status === MATCH_STATUS.PENDING && matchHasScore(m)) {
+    showToast('Para dejarlo pendiente usa Restaurar.', true);
+    return;
+  }
   const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
   card?.querySelectorAll('.admin-phase-opt').forEach(b => { b.disabled = true; });
-
   try {
-    await saveMatchLivePhase(docId, target);
-    m.faseEnVivo = target;
+    await saveMatchStatus(docId, status);
+    // Actualizar estado local para re-render sin esperar a snapshot
+    m.estado = status;
+    m.faseEnVivo = status === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null;
     renderAdmin();
-    showToast(target === 'medio_tiempo' ? 'Medio tiempo' : 'Jugando ahora', false);
+    const label = {
+      pendiente: 'Pendiente',
+      jugando: 'Jugando ahora',
+      medio_tiempo: 'Medio tiempo',
+      finalizado: 'Finalizado',
+    }[status];
+    showToast(label, false);
   } catch (err) {
     showToast(err.message || 'No se pudo cambiar el estado', true);
     renderAdmin();
@@ -569,7 +681,12 @@ function openAdminConfirm(docId) {
   if (validated.error) { alert(validated.error); return; }
 
   const m = state.partidos.find(x => x.docId === docId);
-  state.adminPendingSave = { docId, gl: validated.gl, gv: validated.gv };
+  // Determinar el estado que se intenta guardar desde los botones activos. Si no hay, usa estado actual.
+  let estado = card.querySelector('.admin-phase-opt.active')?.dataset.status;
+  if (!isValidMatchStatus(estado)) {
+    estado = normalizeMatchStatus(m);
+  }
+  state.adminPendingSave = { docId, gl: validated.gl, gv: validated.gv, estado };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Confirmar resultado';
@@ -586,7 +703,13 @@ function openAdminConfirm(docId) {
 function openAdminResetConfirm(docId) {
   const m = state.partidos.find(x => x.docId === docId);
   if (!m) return;
-  state.adminPendingSave = { docId, gl: null, gv: null, reset: true };
+  state.adminPendingSave = {
+    docId,
+    gl: null,
+    gv: null,
+    reset: true,
+    estado: MATCH_STATUS.PENDING,
+  };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Restaurar partido';
@@ -603,12 +726,12 @@ function openAdminResetConfirm(docId) {
 async function handleAdminModalConfirm() {
   const pending = state.adminPendingSave;
   if (!pending) return;
-  const { docId, gl, gv, reset } = pending;
+  const { docId, gl, gv, reset, estado } = pending;
   const btn = document.getElementById('modalConfirm');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await saveMatchResult(docId, gl, gv);
+    await saveMatchResult(docId, gl, gv, estado);
     state.adminPendingSave = null;
     state.adminEditingId = null;
     closeModal();
@@ -669,7 +792,7 @@ async function saveSingleMatch(matchId, gl, gv) {
   if (saved[String(matchId)]) throw new Error('Ese pronóstico ya está guardado');
 
   const m = state.partidos.find(x => x.id === matchId);
-  if (!m || m.golesLocal !== null) throw new Error('Ese partido ya no se puede pronosticar');
+  if (!m || matchHasScore(m)) throw new Error('Ese partido ya no se puede pronosticar');
   if (matchStarted(m)) throw new Error('Ya cerró el tiempo para pronosticar este partido');
 
   const { doc, setDoc, serverTimestamp } = firestoreFns;
@@ -706,7 +829,8 @@ function buildPodio(partidos, participantes, pronosticos) {
     preds.forEach(pr => { predMap[pr.id] = pr; });
 
     for (const m of partidos) {
-      if (m.golesLocal === null) continue;
+      // Solo contar partidos finalizados con marcador definitivo para puntuar
+      if (!matchFinalized(m) || !matchHasScore(m)) continue;
       played++;
       const pr = predMap[m.id];
       if (pr) {
@@ -1143,7 +1267,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
 
   const playedCountEl = document.getElementById('playedCount');
   if (playedCountEl) {
-    const played = state.partidos.filter(m => m.golesLocal !== null).length;
+    const played = state.partidos.filter(m => matchFinalized(m)).length;
     playedCountEl.textContent = `${played}/${state.partidos.length}`;
   }
 
@@ -1261,7 +1385,7 @@ function scrollToCurrentMatch() {
 }
 
 function buildMatchCard(m, { isOwn, savedItems, predMap }) {
-  const isPlayed = m.golesLocal !== null;
+  const isPlayed = matchFinalized(m);
   const saved = savedItems[String(m.id)];
   const pr = predMap[m.id];
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
@@ -1289,14 +1413,15 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   }
 
   // Solo lectura
-  const isLive = !isPlayed && matchLive(m);
+  const isLive = matchLive(m);
   const isHalftime = matchHalftime(m);
   const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
+  const hasRealScore = matchHasScore(m);
   const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
-  const realL = isPlayed ? m.golesLocal : '–';
-  const realV = isPlayed ? m.golesVisitante : '–';
+  const realL = hasRealScore ? m.golesLocal : '–';
+  const realV = hasRealScore ? m.golesVisitante : '–';
   let stateClass = 'state-pending';
   if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
   else if (isHalftime) stateClass = 'state-halftime';
@@ -1305,9 +1430,13 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   if (isPlayed) {
     ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
   } else if (isHalftime) {
-    ptsHTML = `<span class="match-points pts-halftime">Medio tiempo</span>`;
+    ptsHTML = hasRealScore
+      ? `<span class="match-points pts-halftime">Medio tiempo · ${m.golesLocal}-${m.golesVisitante}</span>`
+      : `<span class="match-points pts-halftime">Medio tiempo</span>`;
   } else if (isLive) {
-    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
+    ptsHTML = hasRealScore
+      ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> En vivo · ${m.golesLocal}-${m.golesVisitante}</span>`
+      : `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
   } else {
@@ -1325,9 +1454,9 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
           <span class="score-num ${hasPred ? '' : 'empty'}">${predV}</span>
         </div>
         <div class="score-row real">
-          <span class="score-num ${isPlayed ? '' : 'empty'}">${realL}</span>
+          <span class="score-num ${hasRealScore ? '' : 'empty'}">${realL}</span>
           <span class="score-row-label">Resultado</span>
-          <span class="score-num ${isPlayed ? '' : 'empty'}">${realV}</span>
+          <span class="score-num ${hasRealScore ? '' : 'empty'}">${realV}</span>
         </div>
       </div>
       <div class="match-footer">${ptsHTML}</div>

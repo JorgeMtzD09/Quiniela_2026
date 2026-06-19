@@ -9,7 +9,11 @@ service cloud.firestore {
       allow read: if true;
       allow update: if request.auth != null
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['golesLocal', 'golesVisitante', 'faseEnVivo']);
+             .hasOnly(['golesLocal', 'golesVisitante', 'faseEnVivo', 'estado'])
+        && (
+          !request.resource.data.keys().hasAny(['estado']) ||
+          request.resource.data.estado in ['pendiente', 'jugando', 'medio_tiempo', 'finalizado']
+        );
       allow create, delete: if false;
     }
 
