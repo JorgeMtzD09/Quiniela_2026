@@ -493,15 +493,11 @@ function buildAdminMatchCard(m) {
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
   const statusHTML = isPlayed && hasScore
     ? `<span class="match-points pts-saved">Finalizado: ${m.golesLocal} - ${m.golesVisitante}</span>`
-    : isHalftime && hasScore
-      ? `<span class="match-points pts-halftime">Medio tiempo: ${m.golesLocal} - ${m.golesVisitante}</span>`
-      : isHalftime
-        ? `<span class="match-points pts-halftime">Medio tiempo</span>`
-        : status === MATCH_STATUS.LIVE && hasScore
-          ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> En vivo: ${m.golesLocal} - ${m.golesVisitante}</span>`
-          : status === MATCH_STATUS.LIVE
-            ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
-            : `<span class="match-points pts-pending">Sin resultado</span>`;
+    : isHalftime
+      ? `<span class="match-points pts-halftime">Medio tiempo</span>`
+        : status === MATCH_STATUS.LIVE
+          ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
+          : `<span class="match-points pts-pending">Sin resultado</span>`;
   // Mostrar siempre los controles de estado para el admin
   const livePhaseHTML = `
       <div class="admin-live-phase" role="group" aria-label="Estado del partido">
@@ -1291,11 +1287,10 @@ function renderPersonDetail({ resetScroll = false } = {}) {
   }
 }
 
-// El primer partido que aún no tiene resultado: el primero en estatus
-// "Guardado" (con pronóstico) o "Por jugar" (sin pronóstico), es decir,
-// el primero después del último ya jugado con resultado.
+// El primer partido no finalizado: puede estar pendiente, jugando o en medio tiempo.
+// Si ya tiene marcador pero sigue en estado "jugando", debe seguir siendo el partido actual.
 function getCurrentMatchId() {
-  const target = state.partidos.find(m => m.golesLocal === null);
+  const target = state.partidos.find(m => !matchFinalized(m));
   return target ? target.id : null;
 }
 
@@ -1430,13 +1425,9 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   if (isPlayed) {
     ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
   } else if (isHalftime) {
-    ptsHTML = hasRealScore
-      ? `<span class="match-points pts-halftime">Medio tiempo · ${m.golesLocal}-${m.golesVisitante}</span>`
-      : `<span class="match-points pts-halftime">Medio tiempo</span>`;
+    ptsHTML = `<span class="match-points pts-halftime">Medio tiempo</span>`;
   } else if (isLive) {
-    ptsHTML = hasRealScore
-      ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> En vivo · ${m.golesLocal}-${m.golesVisitante}</span>`
-      : `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
+    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
   } else {
