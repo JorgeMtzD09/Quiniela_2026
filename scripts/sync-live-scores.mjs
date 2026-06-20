@@ -22,35 +22,35 @@ const NOT_STARTED_STATUSES = new Set(['TBD', 'NS', 'PST', 'CANC', 'ABD', 'AWD', 
 const TEAM_ALIASES = {
   mexico: ['mexico', 'mex'],
   sudafrica: ['sudafrica', 'south africa', 'rsa'],
-  'corea del sur': ['corea del sur', 'south korea', 'korea republic', 'kor'],
-  chequia: ['chequia', 'czechia', 'czech republic', 'cze'],
+  'corea del sur': ['corea del sur', 'corea republica', 'corea', 'south korea', 'korea republic', 'korea', 'kor'],
+  chequia: ['chequia', 'republica checa', 'czechia', 'czech republic', 'cze'],
   canada: ['canada', 'can'],
-  'bosnia y herzegovina': ['bosnia y herzegovina', 'bosnia and herzegovina', 'bih'],
+  'bosnia y herzegovina': ['bosnia y herzegovina', 'bosnia herzegovina', 'bosnia', 'bosnia and herzegovina', 'bih'],
   catar: ['catar', 'qatar', 'qat'],
-  suiza: ['suiza', 'switzerland', 'sui'],
+  suiza: ['suiza', 'switzerland', 'sui', 'swi'],
   brasil: ['brasil', 'brazil', 'bra'],
   marruecos: ['marruecos', 'morocco', 'mar'],
   haiti: ['haiti', 'hai'],
   escocia: ['escocia', 'scotland', 'sco'],
   paraguay: ['paraguay', 'par'],
-  'estados unidos': ['estados unidos', 'usa', 'united states', 'united states of america'],
+  'estados unidos': ['estados unidos', 'eeuu', 'ee uu', 'usa', 'united states', 'united states of america'],
   australia: ['australia', 'aus'],
   turquia: ['turquia', 'turkiye', 'turkey', 'tur'],
-  alemania: ['alemania', 'germany', 'ger'],
+  alemania: ['alemania', 'germany', 'ger', 'ale'],
   curazao: ['curazao', 'curacao', 'cur'],
   'paises bajos': ['paises bajos', 'netherlands', 'holanda', 'ned'],
-  japon: ['japon', 'japan', 'jpn'],
-  'costa de marfil': ['costa de marfil', 'ivory coast', 'cote divoire', 'cote d ivoire', 'civ'],
+  japon: ['japon', 'japan', 'jpn', 'jap'],
+  'costa de marfil': ['costa de marfil', 'ivory coast', 'cote divoire', 'cote d ivoire', 'cote dvoire', 'civ'],
   ecuador: ['ecuador', 'ecu'],
   suecia: ['suecia', 'sweden', 'swe'],
   tunez: ['tunez', 'tunisia', 'tun'],
   espana: ['espana', 'spain', 'esp'],
-  'cabo verde': ['cabo verde', 'cape verde', 'cpv'],
+  'cabo verde': ['cabo verde', 'caboverde', 'islas de cabo verde', 'islas cabo verde', 'cape verde', 'cpv'],
   belgica: ['belgica', 'belgium', 'bel'],
   egipto: ['egipto', 'egypt', 'egy'],
   iran: ['iran', 'irn'],
-  'nueva zelanda': ['nueva zelanda', 'new zealand', 'nzl'],
-  'arabia saudita': ['arabia saudita', 'saudi arabia', 'ksa'],
+  'nueva zelanda': ['nueva zelanda', 'nueva zelandia', 'new zealand', 'nzl'],
+  'arabia saudita': ['arabia saudita', 'arabia saudi', 'saudi arabia', 'ksa', 'arsa'],
   uruguay: ['uruguay', 'uru'],
   francia: ['francia', 'france', 'fra'],
   senegal: ['senegal', 'sen'],
@@ -61,7 +61,7 @@ const TEAM_ALIASES = {
   austria: ['austria', 'aut'],
   jordania: ['jordania', 'jordan', 'jor'],
   portugal: ['portugal', 'por'],
-  'rd congo': ['rd congo', 'dr congo', 'congo dr', 'congo', 'cod'],
+  'rd congo': ['rd congo', 'rdc', 'republica democratica del congo', 'dr congo', 'congo dr', 'congo', 'cod'],
   uzbekistan: ['uzbekistan', 'uzb'],
   colombia: ['colombia', 'col'],
   inglaterra: ['inglaterra', 'england', 'eng'],
@@ -142,6 +142,17 @@ function fixtureTeams(fixture) {
   };
 }
 
+function describeFixture(fixture) {
+  const { home, away } = fixtureTeams(fixture);
+  const status = fixture?.fixture?.status?.short || '?';
+  const elapsed = fixture?.fixture?.status?.elapsed;
+  const goalsHome = fixture?.goals?.home;
+  const goalsAway = fixture?.goals?.away;
+  const minute = Number.isInteger(elapsed) ? ` ${elapsed}'` : '';
+  const score = Number.isInteger(goalsHome) && Number.isInteger(goalsAway) ? ` ${goalsHome}-${goalsAway}` : '';
+  return `${fixture?.fixture?.id ?? '?'} ${home || '?'} vs ${away || '?'} ${status}${minute}${score}`.trim();
+}
+
 export function findProviderFixture(localMatch, providerFixtures) {
   const providerId = localMatch.apiFootballFixtureId;
   if (providerId != null) {
@@ -170,6 +181,10 @@ export function buildMatchUpdate(localMatch, fixture, now = new Date()) {
   const { home, away } = fixtureTeams(fixture);
   const isSwapped = teamsMatch(localMatch.local, away) && teamsMatch(localMatch.visitante, home);
   const hasScore = Number.isInteger(goalsHome) && Number.isInteger(goalsAway);
+  const isZeroZero = goalsHome === 0 && goalsAway === 0;
+  const shouldPersistScore = hasScore
+    && (mappedStatus === MATCH_STATUS.FINAL
+      || ((mappedStatus === MATCH_STATUS.LIVE || mappedStatus === MATCH_STATUS.HALFTIME) && !isZeroZero));
   const elapsed = fixture?.fixture?.status?.elapsed;
 
   const next = {
@@ -181,7 +196,7 @@ export function buildMatchUpdate(localMatch, fixture, now = new Date()) {
   if (Number.isInteger(elapsed)) next.minuto = elapsed;
   else if (mappedStatus === MATCH_STATUS.PENDING || mappedStatus === MATCH_STATUS.FINAL) next.minuto = null;
 
-  if (hasScore) {
+  if (shouldPersistScore) {
     next.golesLocal = Number(isSwapped ? goalsAway : goalsHome);
     next.golesVisitante = Number(isSwapped ? goalsHome : goalsAway);
   }
@@ -304,7 +319,10 @@ async function run() {
   let writes = 0;
   for (const match of relevantMatches) {
     const fixture = findProviderFixture(match, providerFixtures);
-    if (!fixture) continue;
+    if (!fixture) {
+      console.log(`No provider fixture matched local #${match.id} ${match.local} vs ${match.visitante}. API fixtures: ${providerFixtures.map(describeFixture).join(' | ') || 'none'}`);
+      continue;
+    }
     const update = diffUpdate(match, buildMatchUpdate(match, fixture, now));
     if (!Object.keys(update).length) continue;
     update.lastLiveSync = FieldValue.serverTimestamp();

@@ -14,6 +14,8 @@ test('normalizes Spanish and provider team names', () => {
   assert.equal(normalizeTeam('Mexico'), 'mexico');
   assert.equal(normalizeTeam('United States'), 'estados unidos');
   assert.equal(normalizeTeam('Côte d’Ivoire'), 'costa de marfil');
+  assert.equal(normalizeTeam('🇩🇪 Alemania'), 'alemania');
+  assert.equal(normalizeTeam('🇨🇮 Costa de Marfil'), 'costa de marfil');
 });
 
 test('maps API-Football statuses to app statuses', () => {
@@ -45,6 +47,16 @@ test('finds provider fixture by teams and nearby date', () => {
   assert.equal(fixture.fixture.id, 20);
 });
 
+test('finds Germany vs Ivory Coast when local names include flags', () => {
+  const fixture = findProviderFixture(
+    { local: '🇩🇪 Alemania', visitante: '🇨🇮 Costa de Marfil', fecha: '2026-06-20T20:00:00Z' },
+    [
+      { fixture: { id: 34, date: '2026-06-20T20:00:00Z' }, teams: { home: { name: 'Germany' }, away: { name: "Côte d'Ivoire" } } },
+    ],
+  );
+  assert.equal(fixture.fixture.id, 34);
+});
+
 test('builds live update with score and minute', () => {
   const update = buildMatchUpdate(
     { estado: 'pendiente' },
@@ -59,6 +71,49 @@ test('builds live update with score and minute', () => {
   assert.equal(update.minuto, 63);
   assert.equal(update.golesLocal, 2);
   assert.equal(update.golesVisitante, 1);
+});
+
+test('does not persist a live nil-nil score', () => {
+  const update = buildMatchUpdate(
+    { estado: 'pendiente' },
+    {
+      fixture: { id: 44, status: { short: '1H', elapsed: 7 } },
+      goals: { home: 0, away: 0 },
+    },
+    new Date('2026-06-11T19:07:00Z'),
+  );
+  assert.equal(update.estado, 'jugando');
+  assert.equal(update.minuto, 7);
+  assert.equal(update.golesLocal, undefined);
+  assert.equal(update.golesVisitante, undefined);
+});
+
+test('persists nil-nil after the match is final', () => {
+  const update = buildMatchUpdate(
+    { estado: 'jugando' },
+    {
+      fixture: { id: 45, status: { short: 'FT', elapsed: 90 } },
+      goals: { home: 0, away: 0 },
+    },
+    new Date('2026-06-11T21:00:00Z'),
+  );
+  assert.equal(update.estado, 'finalizado');
+  assert.equal(update.golesLocal, 0);
+  assert.equal(update.golesVisitante, 0);
+});
+
+test('does not persist a not-started nil-nil score', () => {
+  const update = buildMatchUpdate(
+    { estado: 'pendiente' },
+    {
+      fixture: { id: 46, status: { short: 'NS', elapsed: null } },
+      goals: { home: 0, away: 0 },
+    },
+    new Date('2026-06-11T18:45:00Z'),
+  );
+  assert.equal(update.estado, 'pendiente');
+  assert.equal(update.golesLocal, undefined);
+  assert.equal(update.golesVisitante, undefined);
 });
 
 test('maps score correctly when provider home/away are swapped', () => {
