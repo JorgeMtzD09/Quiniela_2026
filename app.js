@@ -32,8 +32,8 @@ const STANDINGS_API_URL = 'https://wcup2026.org/api/data.php?action=standings';
 const API_FOOTBALL_FIXTURES_URL = 'https://v3.football.api-sports.io/fixtures';
 const STANDINGS_POLL_MS = 60000;
 const MATCH_LOCK_INTERVAL_MS = 30000;
-const LIVE_MINUTE_TICK_MS = 30000;
-const CLIENT_LIVE_SYNC_COOLDOWN_MS = 60 * 1000;
+const LIVE_MINUTE_TICK_MS = 1000;
+const CLIENT_LIVE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const CLIENT_LIVE_SYNC_KEY = 'quiniela_live_sync_last_v1';
 const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
@@ -152,6 +152,7 @@ let state = {
 
 let matchLockTimer = null;
 let liveMinuteTimer = null;
+let lastRenderedLiveMinuteLabel = '';
 
 // ============================================================
 // Hora de referencia (internet)
@@ -245,10 +246,25 @@ function providerMatchPeriod(m) {
 
 function displayLiveMinute(m) {
   const official = Number.isInteger(m?.minuto) ? m.minuto : null;
-  const minute = official ?? estimatedMatchMinute(m);
+  const shouldAdvanceOfficial = official !== null
+    && matchLive(m)
+    && !matchHalftime(m)
+    && m?.lastLiveSync instanceof Date
+    && ['1H', '2H', 'ET', 'BT'].includes(String(m?.providerStatus || '').toUpperCase());
+  const extraMinutes = shouldAdvanceOfficial
+    ? Math.max(0, Math.floor((nowMs() - m.lastLiveSync.getTime()) / 60000))
+    : 0;
+  const minute = official !== null ? Math.min(130, official + extraMinutes) : estimatedMatchMinute(m);
   const period = providerMatchPeriod(m) || estimatedMatchPeriod(m);
   if (!Number.isInteger(minute)) return 'Jugando ahora';
   return period ? `${period} · Min ${minute}` : `Min ${minute}`;
+}
+
+function liveMinuteRenderKey() {
+  return state.partidos
+    .filter(m => matchLive(m))
+    .map(m => `${m.id}:${displayLiveMinute(m)}`)
+    .join('|');
 }
 
 function mapApiMatchStatus(shortStatus) {
@@ -391,7 +407,7 @@ function clientUpdateDiff(localMatch, update) {
   return diff;
 }
 
-async function syncLiveScoresFromClient({ force = false } = {}) {
+async function syncLiveScoresFromClient({ force = false, silent = false } = {}) {
   const cfg = CONFIG.liveSync || {};
   if (!cfg.enabled || !cfg.apiKey || !db || !firestoreFns || !state.partidos.length) return false;
 
@@ -417,7 +433,7 @@ async function syncLiveScoresFromClient({ force = false } = {}) {
     writes += 1;
   }
 
-  if (writes) showToast(`Resultados actualizados (${writes})`, false);
+  if (writes && !silent) showToast(`Resultados actualizados (${writes})`, false);
   return true;
 }
 
@@ -427,7 +443,14 @@ function startLiveMinuteTimer() {
     const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
     const adminActive = document.getElementById('viewAdmin')?.classList.contains('active');
     const hasLive = state.partidos.some(m => matchLive(m));
+    const hasRelevant = state.partidos.some(matchRelevantForClientSync);
+    if (hasRelevant) {
+      syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+    }
     if (!hasLive) return;
+    const nextKey = liveMinuteRenderKey();
+    if (nextKey === lastRenderedLiveMinuteLabel) return;
+    lastRenderedLiveMinuteLabel = nextKey;
     if (quinielaActive && state.editingMatchId === null) renderPersonDetail();
     if (adminActive && state.adminEditingId === null) renderAdmin();
   }, LIVE_MINUTE_TICK_MS);
@@ -607,7 +630,7 @@ function subscribeFirestore() {
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-    syncLiveScoresFromClient().catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+    syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
   };
 
   unsubscribers.push(
@@ -666,7 +689,7 @@ function subscribeAdmin() {
       state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
       if (state.adminEditingId === null) renderAdmin();
       setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-      syncLiveScoresFromClient().catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+      syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
     }, err => {
       console.error(err);
       setStatus('Error al leer partidos', 'error');
