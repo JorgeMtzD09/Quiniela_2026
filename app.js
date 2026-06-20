@@ -1,7 +1,7 @@
 import {
   formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX,
   GROUP_LETTERS, computeGroupStandings, parseApiStandings, mergeStandings,
-  displayTeamName, teamFlag, getMatchGroup,
+  displayTeamName, teamFlag, getMatchGroup, teamsMatch,
 } from './fixtures-data.js';
 
 // ============================================================
@@ -17,9 +17,11 @@ export const CONFIG = {
     appId: '1:940858489606:web:d7d6c50791c56181457c87',
   },
   liveSync: {
-    // Opcional: pega aquí la URL del workflow en GitHub Actions para que el admin
-    // pueda abrirlo y ejecutar "Run workflow" manualmente.
-    workflowUrl: 'https://github.com/JorgeMtzD09/Quiniela_2026/actions/workflows/sync-live-scores.yml',
+    enabled: true,
+    // Directo desde el cliente: esta key queda visible en el navegador.
+    apiKey: '8b2d04d17003724255b9c3427467592b',
+    leagueId: '1',
+    season: '2026',
   },
 };
 
@@ -27,9 +29,13 @@ const SESSION_KEY = 'quiniela_session_v1';
 const FIREBASE_VERSION = '10.12.0';
 const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_City';
 const STANDINGS_API_URL = 'https://wcup2026.org/api/data.php?action=standings';
+const API_FOOTBALL_FIXTURES_URL = 'https://v3.football.api-sports.io/fixtures';
 const STANDINGS_POLL_MS = 60000;
 const MATCH_LOCK_INTERVAL_MS = 30000;
 const LIVE_MINUTE_TICK_MS = 30000;
+const CLIENT_LIVE_SYNC_COOLDOWN_MS = 60 * 1000;
+const CLIENT_LIVE_SYNC_KEY = 'quiniela_live_sync_last_v1';
+const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
 
@@ -245,6 +251,176 @@ function displayLiveMinute(m) {
   return period ? `${period} · Min ${minute}` : `Min ${minute}`;
 }
 
+function mapApiMatchStatus(shortStatus) {
+  const short = String(shortStatus || '').toUpperCase();
+  if (short === 'HT') return MATCH_STATUS.HALFTIME;
+  if (short === 'FT' || short === 'AET' || short === 'PEN') return MATCH_STATUS.FINAL;
+  if (['1H', '2H', 'ET', 'BT', 'P', 'SUSP', 'INT'].includes(short)) return MATCH_STATUS.LIVE;
+  if (['TBD', 'NS', 'PST', 'CANC', 'ABD', 'AWD', 'WO'].includes(short)) return MATCH_STATUS.PENDING;
+  return null;
+}
+
+function cdmxDateKey(date) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+}
+
+function matchRelevantForClientSync(m) {
+  if (matchLive(m) || matchHalftime(m)) return true;
+  if (!m?.fecha) return false;
+  const now = nowMs();
+  return now >= m.fecha.getTime() - 30 * 60 * 1000
+    && now <= m.fecha.getTime() + 4 * 60 * 60 * 1000;
+}
+
+function clientSyncDates(matches) {
+  return [...new Set(matches
+    .filter(matchRelevantForClientSync)
+    .map(m => m.fecha)
+    .filter(Boolean)
+    .map(cdmxDateKey))];
+}
+
+function fixtureTeams(fixture) {
+  return {
+    home: fixture?.teams?.home?.name || '',
+    away: fixture?.teams?.away?.name || '',
+  };
+}
+
+function fixtureDate(fixture) {
+  return parsePartidoFecha(fixture?.fixture?.date);
+}
+
+function findProviderFixture(localMatch, providerFixtures) {
+  if (localMatch.apiFootballFixtureId != null) {
+    const exact = providerFixtures.find(f => String(f?.fixture?.id) === String(localMatch.apiFootballFixtureId));
+    if (exact) return exact;
+  }
+
+  return providerFixtures.find(fixture => {
+    const apiDate = fixtureDate(fixture);
+    if (localMatch.fecha && apiDate && Math.abs(localMatch.fecha.getTime() - apiDate.getTime()) > MATCH_DATE_TOLERANCE_MS) {
+      return false;
+    }
+    const { home, away } = fixtureTeams(fixture);
+    return (teamsMatch(localMatch.local, home) && teamsMatch(localMatch.visitante, away))
+      || (teamsMatch(localMatch.local, away) && teamsMatch(localMatch.visitante, home));
+  }) || null;
+}
+
+async function fetchApiFootballFixturesForDate(date, includeCompetition = true) {
+  const cfg = CONFIG.liveSync || {};
+  const url = new URL(API_FOOTBALL_FIXTURES_URL);
+  if (includeCompetition) {
+    url.searchParams.set('league', cfg.leagueId || '1');
+    url.searchParams.set('season', cfg.season || '2026');
+  }
+  url.searchParams.set('date', date);
+  url.searchParams.set('timezone', 'America/Mexico_City');
+
+  const res = await fetch(url, {
+    cache: 'no-store',
+    headers: { 'x-apisports-key': cfg.apiKey },
+  });
+  if (!res.ok) throw new Error(`API-Football ${res.status}`);
+  const data = await res.json();
+  if (!Array.isArray(data.response)) throw new Error('Respuesta inválida de API-Football');
+  return data.response;
+}
+
+async function fetchClientLiveFixtures(dates) {
+  const fixtures = [];
+  for (const date of dates) {
+    const scoped = await fetchApiFootballFixturesForDate(date, true);
+    fixtures.push(...scoped);
+    if (!scoped.length) {
+      const fullDay = await fetchApiFootballFixturesForDate(date, false);
+      fixtures.push(...fullDay);
+    }
+  }
+  return fixtures;
+}
+
+function buildClientMatchUpdate(localMatch, fixture) {
+  const providerStatus = fixture?.fixture?.status?.short || null;
+  const mappedStatus = mapApiMatchStatus(providerStatus);
+  const goalsHome = fixture?.goals?.home;
+  const goalsAway = fixture?.goals?.away;
+  const { home, away } = fixtureTeams(fixture);
+  const isSwapped = teamsMatch(localMatch.local, away) && teamsMatch(localMatch.visitante, home);
+  const hasScore = Number.isInteger(goalsHome) && Number.isInteger(goalsAway);
+  const isZeroZero = goalsHome === 0 && goalsAway === 0;
+  const shouldPersistScore = hasScore
+    && (mappedStatus === MATCH_STATUS.FINAL
+      || ((mappedStatus === MATCH_STATUS.LIVE || mappedStatus === MATCH_STATUS.HALFTIME) && !isZeroZero));
+  const elapsed = fixture?.fixture?.status?.elapsed;
+
+  const update = {
+    apiFootballFixtureId: fixture?.fixture?.id ?? localMatch.apiFootballFixtureId ?? null,
+    providerStatus,
+    lastLiveSync: new Date(),
+  };
+
+  if (Number.isInteger(elapsed)) update.minuto = elapsed;
+  else if (mappedStatus === MATCH_STATUS.PENDING || mappedStatus === MATCH_STATUS.FINAL) update.minuto = null;
+
+  if (shouldPersistScore) {
+    update.golesLocal = Number(isSwapped ? goalsAway : goalsHome);
+    update.golesVisitante = Number(isSwapped ? goalsHome : goalsAway);
+  }
+
+  if (mappedStatus && mappedStatus !== MATCH_STATUS.PENDING) {
+    update.estado = mappedStatus;
+    update.faseEnVivo = mappedStatus === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null;
+  } else if (mappedStatus === MATCH_STATUS.PENDING && localMatch.estado !== MATCH_STATUS.FINAL) {
+    update.estado = MATCH_STATUS.PENDING;
+    update.faseEnVivo = null;
+  }
+
+  return update;
+}
+
+function clientUpdateDiff(localMatch, update) {
+  const diff = {};
+  for (const [key, value] of Object.entries(update)) {
+    const current = localMatch[key];
+    if (current instanceof Date && value instanceof Date && current.getTime() === value.getTime()) continue;
+    if (current === value || (current == null && value == null)) continue;
+    diff[key] = value;
+  }
+  return diff;
+}
+
+async function syncLiveScoresFromClient({ force = false } = {}) {
+  const cfg = CONFIG.liveSync || {};
+  if (!cfg.enabled || !cfg.apiKey || !db || !firestoreFns || !state.partidos.length) return false;
+
+  const now = Date.now();
+  const last = Number(localStorage.getItem(CLIENT_LIVE_SYNC_KEY) || 0);
+  if (!force && now - last < CLIENT_LIVE_SYNC_COOLDOWN_MS) return false;
+
+  const dates = clientSyncDates(state.partidos);
+  if (!dates.length) return false;
+
+  localStorage.setItem(CLIENT_LIVE_SYNC_KEY, String(now));
+  const providerFixtures = await fetchClientLiveFixtures(dates);
+  const { doc, updateDoc, serverTimestamp } = firestoreFns;
+
+  let writes = 0;
+  for (const match of state.partidos.filter(matchRelevantForClientSync)) {
+    const fixture = findProviderFixture(match, providerFixtures);
+    if (!fixture) continue;
+    const update = clientUpdateDiff(match, buildClientMatchUpdate(match, fixture));
+    if (!Object.keys(update).length) continue;
+    update.lastLiveSync = serverTimestamp();
+    await updateDoc(doc(db, 'partidos', match.docId), update);
+    writes += 1;
+  }
+
+  if (writes) showToast(`Resultados actualizados (${writes})`, false);
+  return true;
+}
+
 function startLiveMinuteTimer() {
   if (liveMinuteTimer) return;
   liveMinuteTimer = setInterval(() => {
@@ -431,6 +607,7 @@ function subscribeFirestore() {
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
+    syncLiveScoresFromClient().catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
   };
 
   unsubscribers.push(
@@ -489,6 +666,7 @@ function subscribeAdmin() {
       state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
       if (state.adminEditingId === null) renderAdmin();
       setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
+      syncLiveScoresFromClient().catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
     }, err => {
       console.error(err);
       setStatus('Error al leer partidos', 'error');
@@ -839,13 +1017,18 @@ function renderAdmin() {
 }
 
 function handleLiveSyncNow() {
-  const url = CONFIG.liveSync?.workflowUrl;
-  if (url) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-    showToast('Abriendo GitHub Actions para ejecutar el workflow.', false);
+  if (!CONFIG.liveSync?.apiKey) {
+    showToast('Configura la API key de API-Football en app.js.', true);
     return;
   }
-  alert('Configura CONFIG.liveSync.workflowUrl en app.js con la URL del workflow de GitHub Actions. Mientras tanto, puedes entrar a GitHub → Actions → Sync live scores → Run workflow.');
+  syncLiveScoresFromClient({ force: true })
+    .then(ok => {
+      if (!ok) showToast('No hay partidos para actualizar ahora.', false);
+    })
+    .catch(err => {
+      console.error(err);
+      showToast('No se pudo actualizar desde API-Football.', true);
+    });
 }
 
 // ============================================================

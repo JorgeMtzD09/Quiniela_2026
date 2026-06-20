@@ -1,9 +1,0 @@
-{
-  "scripts": {
-    "test": "node --test"
-  },
-  "dependencies": {
-    "firebase-admin": "^12.7.0"
-  },
-  "devDependencies": {}
-}
