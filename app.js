@@ -219,10 +219,30 @@ function estimatedMatchMinute(m) {
   return Math.min(120, elapsed - 15);
 }
 
+function estimatedMatchPeriod(m) {
+  if (!m?.fecha) return null;
+  const elapsed = Math.floor((nowMs() - m.fecha.getTime()) / 60000) + 1;
+  if (elapsed < 1 || elapsed > 130) return null;
+  if (elapsed <= 60) return '1T';
+  return '2T';
+}
+
+function providerMatchPeriod(m) {
+  const status = String(m?.providerStatus || '').toUpperCase();
+  if (status === '1H') return '1T';
+  if (status === '2H') return '2T';
+  if (status === 'HT') return 'MT';
+  if (status === 'ET' || status === 'BT') return 'TE';
+  if (status === 'P') return 'Penales';
+  return null;
+}
+
 function displayLiveMinute(m) {
   const official = Number.isInteger(m?.minuto) ? m.minuto : null;
   const minute = official ?? estimatedMatchMinute(m);
-  return Number.isInteger(minute) ? `Min ${minute}` : 'Jugando ahora';
+  const period = providerMatchPeriod(m) || estimatedMatchPeriod(m);
+  if (!Number.isInteger(minute)) return 'Jugando ahora';
+  return period ? `${period} · Min ${minute}` : `Min ${minute}`;
 }
 
 function startLiveMinuteTimer() {
