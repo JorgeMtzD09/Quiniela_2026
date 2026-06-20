@@ -16,6 +16,11 @@ export const CONFIG = {
     messagingSenderId: '940858489606',
     appId: '1:940858489606:web:d7d6c50791c56181457c87',
   },
+  liveSync: {
+    // Opcional: pega aquí la URL del workflow en GitHub Actions para que el admin
+    // pueda abrirlo y ejecutar "Run workflow" manualmente.
+    workflowUrl: 'https://github.com/JorgeMtzD09/Quiniela_2026/actions/workflows/sync-live-scores.yml',
+  },
 };
 
 const SESSION_KEY = 'quiniela_session_v1';
@@ -24,6 +29,7 @@ const CLOCK_SYNC_URL = 'https://worldtimeapi.org/api/timezone/America/Mexico_Cit
 const STANDINGS_API_URL = 'https://wcup2026.org/api/data.php?action=standings';
 const STANDINGS_POLL_MS = 60000;
 const MATCH_LOCK_INTERVAL_MS = 30000;
+const LIVE_MINUTE_TICK_MS = 30000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
 
@@ -139,6 +145,7 @@ let state = {
 };
 
 let matchLockTimer = null;
+let liveMinuteTimer = null;
 
 // ============================================================
 // Hora de referencia (internet)
@@ -200,6 +207,40 @@ function matchDatetimeHTML(m) {
     : '';
   const dateHTML = `<span class="match-datetime-text">${formatMatchDate(m.fecha)}</span>`;
   return `<div class="match-datetime">${groupHTML}${dateHTML}</div>`;
+}
+
+function estimatedMatchMinute(m) {
+  if (!m?.fecha) return null;
+  const elapsed = Math.floor((nowMs() - m.fecha.getTime()) / 60000) + 1;
+  if (elapsed < 1 || elapsed > 130) return null;
+  if (elapsed <= 45) return elapsed;
+  if (elapsed <= 60) return 45;
+  if (elapsed <= 105) return Math.min(90, elapsed - 15);
+  return Math.min(120, elapsed - 15);
+}
+
+function displayLiveMinute(m) {
+  const official = Number.isInteger(m?.minuto) ? m.minuto : null;
+  const minute = official ?? estimatedMatchMinute(m);
+  return Number.isInteger(minute) ? `Min ${minute}` : 'Jugando ahora';
+}
+
+function startLiveMinuteTimer() {
+  if (liveMinuteTimer) return;
+  liveMinuteTimer = setInterval(() => {
+    const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
+    const adminActive = document.getElementById('viewAdmin')?.classList.contains('active');
+    const hasLive = state.partidos.some(m => matchLive(m));
+    if (!hasLive) return;
+    if (quinielaActive && state.editingMatchId === null) renderPersonDetail();
+    if (adminActive && state.adminEditingId === null) renderAdmin();
+  }, LIVE_MINUTE_TICK_MS);
+}
+
+function stopLiveMinuteTimer() {
+  if (!liveMinuteTimer) return;
+  clearInterval(liveMinuteTimer);
+  liveMinuteTimer = null;
 }
 
 function startMatchLockTimer() {
@@ -279,6 +320,7 @@ async function login(usuario, password) {
 function logout() {
   teardownListeners();
   stopMatchLockTimer();
+  stopLiveMinuteTimer();
   stopGruposPolling();
   clearSession();
   state.selectedPerson = null;
@@ -410,6 +452,10 @@ function parsePartidoDoc(d) {
     estado: isValidMatchStatus(m.estado) ? m.estado : null,
     faseEnVivo: m.faseEnVivo === 'medio_tiempo' ? 'medio_tiempo' : null,
     fecha: parsePartidoFecha(m.fecha),
+    apiFootballFixtureId: m.apiFootballFixtureId ?? null,
+    minuto: Number.isInteger(m.minuto) ? m.minuto : null,
+    providerStatus: m.providerStatus || null,
+    lastLiveSync: parsePartidoFecha(m.lastLiveSync),
   };
 }
 
@@ -496,7 +542,7 @@ function buildAdminMatchCard(m) {
     : isHalftime
       ? `<span class="match-points pts-halftime">Medio tiempo</span>`
         : status === MATCH_STATUS.LIVE
-          ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`
+          ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> ${displayLiveMinute(m)}</span>`
           : `<span class="match-points pts-pending">Sin resultado</span>`;
   // Mostrar siempre los controles de estado para el admin
   const livePhaseHTML = `
@@ -770,6 +816,16 @@ function renderAdmin() {
   }
   el.innerHTML = renderAdminMatchesByDay(state.partidos);
   attachAdminListeners();
+}
+
+function handleLiveSyncNow() {
+  const url = CONFIG.liveSync?.workflowUrl;
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    showToast('Abriendo GitHub Actions para ejecutar el workflow.', false);
+    return;
+  }
+  alert('Configura CONFIG.liveSync.workflowUrl en app.js con la URL del workflow de GitHub Actions. Mientras tanto, puedes entrar a GitHub → Actions → Sync live scores → Run workflow.');
 }
 
 // ============================================================
@@ -1427,7 +1483,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   } else if (isHalftime) {
     ptsHTML = `<span class="match-points pts-halftime">Medio tiempo</span>`;
   } else if (isLive) {
-    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> Jugando ahora</span>`;
+    ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> ${displayLiveMinute(m)}</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
   } else {
@@ -1858,6 +1914,7 @@ async function bootstrap() {
     await ensureFirebase();
     await syncInternetClock();
     startMatchLockTimer();
+    startLiveMinuteTimer();
   } catch (err) {
     console.error(err);
     setStatus('Sin conexión con el servidor', 'error');
@@ -1894,6 +1951,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
+  document.getElementById('btnLiveSyncNow')?.addEventListener('click', handleLiveSyncNow);
 
   let jumpTick = false;
   const onScrollOrResize = () => {

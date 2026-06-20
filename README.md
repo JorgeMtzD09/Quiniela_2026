@@ -151,6 +151,54 @@ clave: "Admin"
 
 ---
 
+## Paso 6: Actualización automática de marcador en vivo
+
+La app incluye un workflow de GitHub Actions que puede actualizar marcadores cada 5 minutos usando API-Football y Firestore.
+
+### 1. Crear API key
+
+1. Regístrate en [API-Football](https://www.api-football.com/).
+2. Usa el plan gratis.
+3. Copia tu API key.
+
+### 2. Crear Service Account de Firebase
+
+1. Firebase Console → **Project settings** → **Service accounts**.
+2. **Generate new private key**.
+3. Abre el JSON descargado y copia todo su contenido.
+
+### 3. Configurar secretos en GitHub
+
+En GitHub → repo → **Settings** → **Secrets and variables** → **Actions**:
+
+**Secrets**
+- `API_FOOTBALL_KEY`: tu API key.
+- `FIREBASE_SERVICE_ACCOUNT_JSON`: todo el JSON de la service account.
+
+**Variables** (opcionales)
+- `API_FOOTBALL_LEAGUE_ID`: default `1`.
+- `API_FOOTBALL_SEASON`: default `2026`.
+
+### 4. Probar manualmente
+
+1. GitHub → **Actions** → **Sync live scores**.
+2. Clic en **Run workflow**.
+3. Revisa los logs. Si no hay partidos cerca/en vivo, el workflow termina sin llamar al API.
+
+### 5. Botón admin "Actualizar ahora"
+
+En [app.js](app.js), puedes configurar:
+
+```js
+liveSync: {
+  workflowUrl: 'https://github.com/TU_USUARIO/TU_REPO/actions/workflows/sync-live-scores.yml',
+},
+```
+
+El botón admin abrirá esa página para ejecutar el workflow manualmente. No se guarda ninguna llave de GitHub en el navegador.
+
+---
+
 ## Día a día
 
 ### Participantes
@@ -186,6 +234,8 @@ Quiniela/
 ├── styles.css          # Estilos
 ├── app.js              # Lógica + config Firebase
 ├── fixtures-data.js    # Calendario oficial (72 partidos) para seed
+├── scripts/            # Sync automático de marcadores + pruebas
+├── .github/workflows/  # Workflow programado de GitHub Actions
 ├── seed-fechas.html    # Carga masiva de fechas a Firestore
 ├── firestore.rules     # Reglas de seguridad (copiar a Firebase)
 └── README.md
@@ -195,6 +245,7 @@ Quiniela/
 
 ```
 partidos/{id}         → { id, local, visitante, golesLocal, golesVisitante, fecha }
+                        + { estado, minuto, providerStatus, apiFootballFixtureId, lastLiveSync }
                         (fecha = Timestamp; golesLocal null = partido pendiente)
 participantes/{clave} → { nombreVisible, orden }
 usuarios/{usuario}    → { password, clave }                (participantes)

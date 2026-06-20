@@ -189,6 +189,7 @@ body.admin-mode {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 12px;
 }
 
@@ -219,6 +220,32 @@ body.admin-mode {
   color: #fff;
   padding: 5px 14px;
   border-radius: 20px;
+}
+
+.btn-live-sync {
+  border: 1px solid rgba(30, 111, 217, 0.25);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--wc-blue);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 8px 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 2px 8px rgba(30, 111, 217, 0.08);
+}
+
+.btn-live-sync:active {
+  transform: scale(0.97);
+  background: rgba(30, 111, 217, 0.08);
+}
+
+.admin-sync-hint {
+  margin: -4px 0 12px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 /* Podio — podium real con balones */
