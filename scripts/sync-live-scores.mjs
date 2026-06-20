@@ -248,10 +248,12 @@ async function readQuota(db, todayKey) {
   return { ref, callsToday: Number(data?.apiCallsToday || 0) || 0 };
 }
 
-async function fetchFixturesForDate({ apiKey, leagueId, season, date }) {
+async function fetchFixturesForDate({ apiKey, leagueId, season, date, includeCompetition = true }) {
   const url = new URL(API_BASE_URL);
-  url.searchParams.set('league', leagueId);
-  url.searchParams.set('season', season);
+  if (includeCompetition) {
+    url.searchParams.set('league', leagueId);
+    url.searchParams.set('season', season);
+  }
   url.searchParams.set('date', date);
   url.searchParams.set('timezone', DEFAULT_TIMEZONE);
 
@@ -262,6 +264,28 @@ async function fetchFixturesForDate({ apiKey, leagueId, season, date }) {
   const body = await res.json();
   if (!Array.isArray(body.response)) throw new Error('API-Football response missing response[]');
   return body.response;
+}
+
+async function fetchFixturesForRelevantDates({ apiKey, leagueId, season, dates, maxCalls }) {
+  const providerFixtures = [];
+  let apiCalls = 0;
+
+  for (const date of dates) {
+    if (apiCalls >= maxCalls) break;
+    const fixtures = await fetchFixturesForDate({ apiKey, leagueId, season, date });
+    apiCalls += 1;
+    providerFixtures.push(...fixtures);
+
+    if (!fixtures.length && apiCalls < maxCalls) {
+      console.log(`No fixtures returned for league=${leagueId}, season=${season}, date=${date}. Retrying date-only lookup.`);
+      const broadFixtures = await fetchFixturesForDate({ apiKey, leagueId, season, date, includeCompetition: false });
+      apiCalls += 1;
+      providerFixtures.push(...broadFixtures);
+      console.log(`Date-only lookup for ${date} returned ${broadFixtures.length} fixture(s).`);
+    }
+  }
+
+  return { providerFixtures, apiCalls };
 }
 
 async function initFirestoreFromEnv() {
@@ -303,15 +327,17 @@ async function run() {
   }
 
   const datesToFetch = targetDates.slice(0, remainingCalls);
-  const providerFixtures = [];
-  for (const date of datesToFetch) {
-    const fixtures = await fetchFixturesForDate({ apiKey, leagueId, season, date });
-    providerFixtures.push(...fixtures);
-  }
+  const { providerFixtures, apiCalls } = await fetchFixturesForRelevantDates({
+    apiKey,
+    leagueId,
+    season,
+    dates: datesToFetch,
+    maxCalls: remainingCalls,
+  });
 
   await quotaRef.set({
     quotaDate: todayKey,
-    apiCallsToday: callsToday + datesToFetch.length,
+    apiCallsToday: callsToday + apiCalls,
     updatedAt: FieldValue.serverTimestamp(),
   }, { merge: true });
 
@@ -331,7 +357,7 @@ async function run() {
   }
 
   if (writes) await batch.commit();
-  console.log(`Fetched ${datesToFetch.length} date(s), matched ${writes} Firestore match(es).`);
+  console.log(`Fetched ${datesToFetch.length} date(s) with ${apiCalls} API call(s), matched ${writes} Firestore match(es).`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
