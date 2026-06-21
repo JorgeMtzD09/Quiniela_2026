@@ -209,8 +209,8 @@ function createShineTexture() {
 
 function createSpotBeamTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 720;
+  canvas.width = 160;
+  canvas.height = 420;
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -245,8 +245,8 @@ function createSpotBeamTexture() {
 
 function createGlowTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
+  canvas.width = 128;
+  canvas.height = 128;
   const ctx = canvas.getContext('2d');
   const glow = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
   glow.addColorStop(0, 'rgba(255, 244, 203, 0.92)');
@@ -263,8 +263,8 @@ function createGlowTexture() {
 
 function createStadiumBackdropTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 720;
+  canvas.width = 640;
+  canvas.height = 448;
   const ctx = canvas.getContext('2d');
 
   const base = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -275,40 +275,40 @@ function createStadiumBackdropTexture() {
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  const cupGlow = ctx.createRadialGradient(512, 210, 12, 512, 260, 260);
+  const cupGlow = ctx.createRadialGradient(320, 130, 8, 320, 162, 162);
   cupGlow.addColorStop(0, 'rgba(255, 196, 64, 0.72)');
   cupGlow.addColorStop(0.3, 'rgba(255, 118, 24, 0.36)');
   cupGlow.addColorStop(1, 'rgba(255, 118, 24, 0)');
   ctx.fillStyle = cupGlow;
-  ctx.fillRect(250, 0, 524, 520);
+  ctx.fillRect(156, 0, 328, 324);
 
-  const cup = ctx.createLinearGradient(420, 150, 610, 460);
+  const cup = ctx.createLinearGradient(262, 94, 381, 286);
   cup.addColorStop(0, 'rgba(255, 220, 107, 0.44)');
   cup.addColorStop(0.45, 'rgba(255, 136, 25, 0.34)');
   cup.addColorStop(1, 'rgba(120, 49, 11, 0.1)');
   ctx.fillStyle = cup;
   ctx.beginPath();
-  ctx.ellipse(512, 170, 98, 74, 0, 0, Math.PI * 2);
+  ctx.ellipse(320, 106, 61, 46, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(438, 204);
-  ctx.bezierCurveTo(452, 330, 472, 442, 512, 492);
-  ctx.bezierCurveTo(552, 442, 572, 330, 586, 204);
-  ctx.bezierCurveTo(558, 246, 466, 246, 438, 204);
+  ctx.moveTo(274, 127);
+  ctx.bezierCurveTo(282, 206, 295, 275, 320, 306);
+  ctx.bezierCurveTo(345, 275, 358, 206, 366, 127);
+  ctx.bezierCurveTo(349, 153, 291, 153, 274, 127);
   ctx.fill();
 
   const crowd = ctx.createLinearGradient(0, 315, 0, 510);
-  crowd.addColorStop(0, 'rgba(255, 167, 54, 0.2)');
+  crowd.addColorStop(0, 'rgba(255, 167, 54, 0.18)');
   crowd.addColorStop(0.42, 'rgba(28, 37, 45, 0.66)');
   crowd.addColorStop(1, 'rgba(3, 14, 23, 0.94)');
   ctx.fillStyle = crowd;
-  ctx.fillRect(0, 310, canvas.width, 210);
+  ctx.fillRect(0, 194, canvas.width, 130);
 
   ctx.globalAlpha = 0.55;
-  for (let i = 0; i < 520; i++) {
+  for (let i = 0; i < 180; i++) {
     const x = Math.random() * canvas.width;
-    const y = 300 + Math.random() * 170;
-    const size = 0.8 + Math.random() * 2.4;
+    const y = 188 + Math.random() * 106;
+    const size = 0.5 + Math.random() * 1.7;
     ctx.fillStyle = Math.random() > 0.62 ? 'rgba(255, 177, 72, 0.55)' : 'rgba(255, 244, 205, 0.18)';
     ctx.beginPath();
     ctx.arc(x, y, size, 0, Math.PI * 2);
@@ -321,18 +321,18 @@ function createStadiumBackdropTexture() {
     for (let i = 0; i < count; i++) {
       const t = i / (count - 1);
       const x = startX + (endX - startX) * t;
-      const glow = ctx.createRadialGradient(x, y, 1, x, y, 38);
+      const glow = ctx.createRadialGradient(x, y, 1, x, y, 24);
       glow.addColorStop(0, warm ? 'rgba(255, 225, 160, 0.9)' : 'rgba(115, 225, 255, 0.82)');
       glow.addColorStop(0.34, warm ? 'rgba(255, 146, 44, 0.28)' : 'rgba(82, 206, 255, 0.24)');
       glow.addColorStop(1, 'rgba(255, 180, 80, 0)');
       ctx.fillStyle = glow;
-      ctx.fillRect(x - 40, y - 40, 80, 80);
+      ctx.fillRect(x - 26, y - 26, 52, 52);
     }
   };
-  drawLightRow(42, 300, 245, true);
-  drawLightRow(724, 982, 245, true);
+  drawLightRow(26, 188, 152, true);
+  drawLightRow(452, 614, 152, true);
 
-  const vignette = ctx.createRadialGradient(512, 340, 180, 512, 360, 600);
+  const vignette = ctx.createRadialGradient(320, 212, 112, 320, 224, 374);
   vignette.addColorStop(0, 'rgba(0,0,0,0)');
   vignette.addColorStop(0.72, 'rgba(0,0,0,0.24)');
   vignette.addColorStop(1, 'rgba(0,0,0,0.64)');
@@ -501,7 +501,7 @@ export class PodioScene {
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, window.innerWidth < 700 ? 1.25 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -1085,17 +1085,6 @@ export class PodioScene {
       const scale = 1 + pulse * 0.025;
       shine.scale.set(scale, scale, 1);
     });
-    this.galaObjects.forEach((object, index) => {
-      const pulse = 0.5 + 0.5 * Math.sin(time * 0.9 + index * 0.7);
-      object.traverse?.(child => {
-        if (!child.material || child.userData.baseOpacity == null) return;
-        child.material.opacity = child.userData.baseOpacity * (0.86 + pulse * 0.18);
-      });
-      if (object.material && object.userData.baseOpacity != null) {
-        object.material.opacity = object.userData.baseOpacity * (0.86 + pulse * 0.18);
-      }
-    });
-    this.updateLabels();
     this.renderer.render(this.scene, this.camera);
   }
 

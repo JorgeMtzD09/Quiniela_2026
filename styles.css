@@ -48,7 +48,6 @@
     - 29px
     - var(--nav-height)
     - var(--safe-bottom)
-    - 20px
   );
 }
 
@@ -70,6 +69,17 @@ body {
   line-height: 1.5;
   min-height: 100dvh;
   padding-bottom: calc(var(--nav-height) + var(--safe-bottom) + 8px);
+}
+
+body.podio-mode {
+  height: 100dvh;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+body.podio-mode .main {
+  height: var(--podio-view-height);
+  overflow: hidden;
 }
 
 body.admin-mode {
@@ -297,6 +307,7 @@ body.intro-playing {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  height: var(--podio-view-height);
   margin: -12px -16px 0;
   padding: 0;
   background: linear-gradient(180deg, #f5f6f8 0%, #eceef2 100%);

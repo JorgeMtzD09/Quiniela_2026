@@ -846,7 +846,7 @@ function logout() {
   state.apiStandings = null;
   state.apiStandingsAt = null;
   closeModal();
-  document.body.classList.remove('admin-mode');
+  document.body.classList.remove('admin-mode', 'podio-mode');
   updateHeaderSession();
   applyAuthGate();
 }
@@ -1448,6 +1448,8 @@ function podioSignature() {
 }
 
 function renderPodio(forceAnimate = false) {
+  if (state.activeView !== 'podio') return;
+
   const el = document.getElementById('podioContent');
   if (!el) return;
 
@@ -1932,6 +1934,7 @@ function applyAuthGate() {
   document.getElementById('btnRefresh').style.display = logged ? '' : 'none';
   document.getElementById('btnLogout').hidden = !logged;
   document.body.classList.toggle('admin-mode', admin);
+  if (!logged || admin) document.body.classList.remove('podio-mode');
 
   if (!logged) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -2098,6 +2101,7 @@ function switchView(viewKey) {
   const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo', grupos: 'viewGrupos' };
   const target = views[viewKey] ? viewKey : 'podio';
   state.activeView = target;
+  document.body.classList.toggle('podio-mode', target === 'podio');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
@@ -2113,10 +2117,12 @@ function switchView(viewKey) {
   }
   updatePodioAudioPauseButton();
   if (target === 'podio') {
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     podioMusicManuallyPaused = false;
     startPodioMusic();
     renderPodio(true);
   } else {
+    disposePodiumScene();
     stopPodioMusic();
   }
   updateJumpButton();

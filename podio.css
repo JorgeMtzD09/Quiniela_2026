@@ -16,15 +16,15 @@
 }
 
 .podio-list.podio-3d-mode {
-  overflow: auto;
+  overflow: hidden;
 }
 
 .podio-stage {
   position: relative;
   flex: 1;
   width: 100%;
-  min-height: max(var(--podio-view-height), 720px);
-  height: max(var(--podio-view-height), 720px);
+  min-height: var(--podio-view-height);
+  height: var(--podio-view-height);
   overflow: hidden;
   isolation: isolate;
   background:
@@ -378,7 +378,7 @@
 
 @media (min-width: 600px) {
   .podio-stage {
-    height: min(var(--podio-view-height), 760px);
+    height: var(--podio-view-height);
   }
 
   .rank-card {
