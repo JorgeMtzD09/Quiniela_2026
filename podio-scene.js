@@ -3,8 +3,8 @@ import { groupByRank } from './podio.js';
 
 const PODIUM = {
   1: { x: 0, z: -1.25, w: 1.02, h: 0.94, d: 0.7, color: 0xd49a13, dark: 0x7a4d05 },
-  2: { x: -1.36, z: -1.08, w: 0.82, h: 0.68, d: 0.64, color: 0xaeb8c4, dark: 0x66717c },
-  3: { x: 1.36, z: -1, w: 0.82, h: 0.56, d: 0.64, color: 0xb76328, dark: 0x713211 },
+  2: { x: -1.5, z: -1.08, w: 0.82, h: 0.68, d: 0.64, color: 0xaeb8c4, dark: 0x66717c },
+  3: { x: 1.5, z: -1, w: 0.82, h: 0.56, d: 0.64, color: 0xb76328, dark: 0x713211 },
 };
 
 const FIELD = { width: 3.55, depth: 2.24, x: 0, z: 2.45 };

@@ -21,10 +21,6 @@ export const FIELD_POSITIONS = [
   { left: 58, top: 55 },
 ];
 
-const CROWN_SVG = `<svg class="crown-svg" width="24" height="20" viewBox="0 0 24 20" fill="currentColor" aria-hidden="true">
-  <path d="M2 16h20v2H2v-2zm1.3-10.8 4.2 4.5L12 2l4.5 7.7 4.2-4.5L22 15H2L3.3 5.2z"/>
-</svg>`;
-
 const BALL_SVG = `<svg class="ball-svg" viewBox="0 0 64 64" aria-hidden="true">
   <defs>
     <radialGradient id="ballShade" cx="30%" cy="22%" r="72%">
@@ -90,11 +86,20 @@ function buildSharedCard(rank, group, context) {
   const accent = getRankColor(rank);
   const tie = group.length > 1;
   const points = group[0]?.points ?? 0;
+  if (context === 'on-podium') {
+    return `
+    <article class="rank-card rank-${rank} ${context}${tie ? ' is-tie' : ''}" style="--accent: ${accent}">
+      <div class="rank-card-points-header">${points} pts</div>
+      <div class="rank-card-name">${namesHtml(group)}</div>
+      ${tie ? `<div class="tie-chip">${group.length} empatados</div>` : ''}
+    </article>`;
+  }
+
   return `
     <article class="rank-card rank-${rank} ${context}${tie ? ' is-tie' : ''}" style="--accent: ${accent}">
       <div class="rank-card-meta">
         <span>${rank}°</span>
-        ${rank === 1 ? `<span class="rank-crown">${CROWN_SVG}</span>` : '<span></span>'}
+        <span></span>
         <span>${points} pts</span>
       </div>
       <div class="rank-card-name">${namesHtml(group)}</div>
