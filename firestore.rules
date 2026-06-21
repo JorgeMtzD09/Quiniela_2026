@@ -1,6 +1,19 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function validPronosticoDoc() {
+      return request.resource.data.keys().hasOnly([
+          'items',
+          'actualizado',
+          'compartirPronosticos'
+        ])
+        && request.resource.data.keys().hasAll(['items'])
+        && request.resource.data.items is map
+        && (
+          !request.resource.data.keys().hasAny(['compartirPronosticos']) ||
+          request.resource.data.compartirPronosticos is bool
+        );
+    }
 
     // Partidos: lectura pública. Cualquier sesión autenticada puede actualizar,
     // pero solo los campos de marcador (golesLocal/golesVisitante). El control de
@@ -44,8 +57,12 @@ service cloud.firestore {
     // modificar ni borrar desde el cliente (solo el admin, en la consola).
     match /pronosticos/{clave} {
       allow read: if true;
-      allow create: if request.auth != null;
+      allow create: if request.auth != null
+        && validPronosticoDoc();
       allow update: if request.auth != null
+        && validPronosticoDoc()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['items', 'actualizado', 'compartirPronosticos'])
         && request.resource.data.items.diff(resource.data.items).removedKeys().size() == 0
         && request.resource.data.items.diff(resource.data.items).changedKeys().size() == 0;
       allow delete: if false;

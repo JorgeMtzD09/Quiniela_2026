@@ -154,6 +154,7 @@ let state = {
   pendingSave: null,
   adminEditingId: null,
   adminPendingSave: null,
+  sharePreferenceSaving: false,
   clockOffset: 0,
   apiStandings: null,
   apiStandingsAt: null,
@@ -837,6 +838,7 @@ function logout() {
   state.selectedPerson = null;
   state.editingMatchId = null;
   state.pendingSave = null;
+  state.sharePreferenceSaving = false;
   state.partidos = [];
   state.participantes = [];
   state.pronosticos = {};
@@ -860,7 +862,7 @@ function pronosticosFromFirestore(docs, partidos) {
 
   for (const p of state.participantes) {
     pronosticos[p.clave] = partidos.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
-    meta[p.clave] = { items: {} };
+    meta[p.clave] = { items: {}, compartirPronosticos: true };
   }
 
   docs.forEach(d => {
@@ -869,7 +871,11 @@ function pronosticosFromFirestore(docs, partidos) {
     if (!pronosticos[clave]) return;
 
     const items = data.items || {};
-    meta[clave] = { items, actualizado: data.actualizado || null };
+    meta[clave] = {
+      items,
+      actualizado: data.actualizado || null,
+      compartirPronosticos: data.compartirPronosticos !== false,
+    };
 
     pronosticos[clave] = partidos.map(m => {
       const item = items[String(m.id)];
@@ -882,6 +888,76 @@ function pronosticosFromFirestore(docs, partidos) {
   });
 
   return { pronosticos, meta };
+}
+
+function ownSharePreference() {
+  const clave = state.session?.clave;
+  if (!clave) return true;
+  return state.pronosticosMeta[clave]?.compartirPronosticos !== false;
+}
+
+function renderShareToggle() {
+  const wrap = document.getElementById('shareToggleWrap');
+  const toggle = document.getElementById('sharePredictionsToggle');
+  const text = document.getElementById('shareToggleText');
+  if (!wrap || !toggle || !text) return;
+
+  const show = !!state.session && !isAdminSession() && state.activeView === 'quiniela';
+  wrap.hidden = !show;
+  if (!show) return;
+
+  const enabled = ownSharePreference();
+  toggle.checked = enabled;
+  toggle.disabled = state.sharePreferenceSaving;
+  text.textContent = 'Compartir resultados';
+  wrap.classList.toggle('is-saving', state.sharePreferenceSaving);
+}
+
+async function saveSharePreference(compartirPronosticos) {
+  if (!state.session?.clave) throw new Error('Inicia sesión');
+  if (!db) throw new Error('Sin conexión');
+
+  const clave = state.session.clave;
+  const meta = state.pronosticosMeta[clave] || { items: {} };
+  const { doc, setDoc, serverTimestamp } = firestoreFns;
+
+  await setDoc(doc(db, 'pronosticos', clave), {
+    items: meta.items || {},
+    compartirPronosticos,
+    actualizado: serverTimestamp(),
+  }, { merge: true });
+}
+
+async function handleShareToggleChange(e) {
+  const toggle = e.currentTarget;
+  const nextValue = toggle.checked;
+  const clave = state.session?.clave;
+  const previousValue = ownSharePreference();
+  if (clave) {
+    state.pronosticosMeta[clave] = {
+      ...(state.pronosticosMeta[clave] || { items: {} }),
+      compartirPronosticos: nextValue,
+    };
+  }
+  state.sharePreferenceSaving = true;
+  renderShareToggle();
+
+  try {
+    await saveSharePreference(nextValue);
+  } catch (err) {
+    console.error(err);
+    alert('No se pudo guardar tu preferencia de privacidad.');
+    if (clave) {
+      state.pronosticosMeta[clave] = {
+        ...(state.pronosticosMeta[clave] || { items: {} }),
+        compartirPronosticos: previousValue,
+      };
+    }
+    toggle.checked = previousValue;
+  } finally {
+    state.sharePreferenceSaving = false;
+    renderShareToggle();
+  }
 }
 
 function applyData(partidos, participantes, pronosticos, meta) {
@@ -1593,6 +1669,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
   const isOwn = !!(state.session && state.session.clave === person);
   const meta = state.pronosticosMeta[person] || { items: {} };
   const savedItems = meta.items || {};
+  const sharesPredictions = meta.compartirPronosticos !== false;
   const preds = state.pronosticos[person] || [];
   const predMap = {};
   preds.forEach(pr => { predMap[pr.id] = pr; });
@@ -1615,7 +1692,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
     playedCountEl.textContent = `${played}/${state.partidos.length}`;
   }
 
-  const ctx = { isOwn, savedItems, predMap };
+  const ctx = { isOwn, savedItems, predMap, sharesPredictions };
   ensureSelectedDay();
   const dayMatches = state.selectedDay
     ? state.partidos.filter(m => {
@@ -1727,8 +1804,11 @@ function scrollToCurrentMatch() {
   }
 }
 
-function buildMatchCard(m, { isOwn, savedItems, predMap }) {
+function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const isPlayed = matchFinalized(m);
+  const isLive = matchLive(m);
+  const isHalftime = matchHalftime(m);
+  const canSeePrediction = isOwn || sharesPredictions !== false || isLive || isPlayed;
   const saved = savedItems[String(m.id)];
   const pr = predMap[m.id];
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
@@ -1756,9 +1836,8 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   }
 
   // Solo lectura
-  const isLive = matchLive(m);
-  const isHalftime = matchHalftime(m);
-  const hasPred = pr && pr.golesLocal !== null && pr.golesVisitante !== null;
+  const hasPred = canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
+  const hasPrivatePred = !canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const hasRealScore = matchHasScore(m);
   const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
@@ -1770,7 +1849,9 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
   else if (isHalftime) stateClass = 'state-halftime';
   else if (isLive) stateClass = 'state-live';
   let ptsHTML;
-  if (isPlayed) {
+  if (hasPrivatePred) {
+    ptsHTML = `<span class="match-points pts-private">Pronóstico privado</span>`;
+  } else if (isPlayed) {
     ptsHTML = `<span class="match-points pts-${pts}">+${pts} ${pts === 1 ? 'punto' : 'puntos'}</span>`;
   } else if (isHalftime) {
     ptsHTML = `<span class="match-points pts-halftime">Medio tiempo</span>`;
@@ -1786,6 +1867,10 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
     <div class="match-card ${stateClass}" data-match-id="${m.id}">
       ${matchDatetimeHTML(m)}
       ${teams}
+      ${hasPrivatePred ? `
+      <div class="private-chip-wrap">
+        <span class="private-chip">PRIVADO</span>
+      </div>` : `
       <div class="score-rows">
         <div class="score-row pred">
           <span class="score-num ${hasPred ? '' : 'empty'}">${predL}</span>
@@ -1797,7 +1882,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap }) {
           <span class="score-row-label">Resultado</span>
           <span class="score-num ${hasRealScore ? '' : 'empty'}">${realV}</span>
         </div>
-      </div>
+      </div>`}
       <div class="match-footer">${ptsHTML}</div>
     </div>`;
 }
@@ -1943,6 +2028,7 @@ function applyAuthGate() {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.getElementById('viewAdmin').classList.add('active');
   }
+  renderShareToggle();
   updateJumpButton();
 }
 
@@ -1958,6 +2044,7 @@ function renderAll() {
   if (state.editingMatchId === null) renderPersonDetail();
   if (state.activeView === 'grupos') renderGrupos();
   updateHeaderSession();
+  renderShareToggle();
 }
 
 // ============================================================
@@ -2116,6 +2203,7 @@ function switchView(viewKey) {
     stopGruposPolling();
   }
   updatePodioAudioPauseButton();
+  renderShareToggle();
   if (target === 'podio') {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     podioMusicManuallyPaused = false;
@@ -2255,6 +2343,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPodioMusic();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);
+  document.getElementById('sharePredictionsToggle').addEventListener('change', handleShareToggleChange);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
   document.getElementById('btnLiveSyncNow')?.addEventListener('click', handleLiveSyncNow);
 
