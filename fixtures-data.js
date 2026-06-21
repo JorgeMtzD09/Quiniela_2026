@@ -103,7 +103,7 @@ const TEAM_ALIASES = {
   suecia: ['suecia', 'sweden', 'swe'],
   tunez: ['tunez', 'tunisia', 'tun'],
   espana: ['espana', 'spain', 'esp'],
-  'cabo verde': ['cabo verde', 'caboverde', 'islas de cabo verde', 'islas cabo verde', 'cape verde', 'cpv'],
+  'cabo verde': ['cabo verde', 'caboverde', 'islas de cabo verde', 'islas del cabo verde', 'islas cabo verde', 'cape verde', 'cape verde islands', 'cv islands', 'cpv'],
   belgica: ['belgica', 'belgium', 'bel'],
   egipto: ['egipto', 'egypt', 'egy'],
   iran: ['iran', 'irn'],

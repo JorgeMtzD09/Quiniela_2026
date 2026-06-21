@@ -49,6 +49,9 @@ const PODIO_MUSIC_VOLUME = 0.54;
 const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
+const CLIENT_LIVE_SYNC_BEFORE_MS = 30 * 60 * 1000;
+const CLIENT_LIVE_SYNC_AFTER_MS = MATCH_DURATION_MS + 30 * 60 * 1000;
+const LIVE_SYNC_STALE_MS = 3 * 60 * 1000;
 
 // ============================================================
 // Estados de partido y helpers para estado/marcador
@@ -538,16 +541,12 @@ function providerMatchPeriod(m) {
 }
 
 function displayLiveMinute(m) {
-  const official = Number.isInteger(m?.minuto) ? m.minuto : null;
-  const shouldAdvanceOfficial = official !== null
-    && matchLive(m)
-    && !matchHalftime(m)
+  const hasFreshOfficialMinute = Number.isInteger(m?.minuto)
     && m?.lastLiveSync instanceof Date
-    && ['1H', '2H', 'ET', 'BT'].includes(String(m?.providerStatus || '').toUpperCase());
-  const extraMinutes = shouldAdvanceOfficial
-    ? Math.max(0, Math.floor((nowMs() - m.lastLiveSync.getTime()) / 60000))
-    : 0;
-  const minute = official !== null ? Math.min(130, official + extraMinutes) : estimatedMatchMinute(m);
+    && nowMs() - m.lastLiveSync.getTime() <= LIVE_SYNC_STALE_MS;
+  const official = hasFreshOfficialMinute ? m.minuto : null;
+  if (official === null && matchLive(m)) return 'Jugando ahora';
+  const minute = official !== null ? official : estimatedMatchMinute(m);
   const period = providerMatchPeriod(m) || estimatedMatchPeriod(m);
   if (!Number.isInteger(minute)) return 'Jugando ahora';
   return period ? `${period} · Min ${minute}` : `Min ${minute}`;
@@ -574,11 +573,12 @@ function cdmxDateKey(date) {
 }
 
 function matchRelevantForClientSync(m) {
+  if (matchFinalized(m) && matchHasScore(m)) return false;
   if (matchLive(m) || matchHalftime(m)) return true;
   if (!m?.fecha) return false;
   const now = nowMs();
-  return now >= m.fecha.getTime() - 30 * 60 * 1000
-    && now <= m.fecha.getTime() + 4 * 60 * 60 * 1000;
+  return now >= m.fecha.getTime() - CLIENT_LIVE_SYNC_BEFORE_MS
+    && now <= m.fecha.getTime() + CLIENT_LIVE_SYNC_AFTER_MS;
 }
 
 function clientSyncDates(matches) {
@@ -633,36 +633,72 @@ async function fetchApiFootballFixturesForDate(date, includeCompetition = true) 
   });
   if (!res.ok) throw new Error(`API-Football ${res.status}`);
   const data = await res.json();
+  if (data?.errors && Object.keys(data.errors).length) {
+    const msg = Object.values(data.errors).join(' ');
+    throw new Error(msg || 'API-Football no disponible');
+  }
   if (!Array.isArray(data.response)) throw new Error('Respuesta inválida de API-Football');
   return data.response;
 }
 
 async function fetchClientLiveFixtures(dates) {
   const fixtures = [];
+  const seen = new Set();
+  const appendFixtures = items => {
+    for (const fixture of items) {
+      const id = fixture?.fixture?.id;
+      const key = id == null ? JSON.stringify(fixtureTeams(fixture)) + fixture?.fixture?.date : String(id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      fixtures.push(fixture);
+    }
+  };
+
   for (const date of dates) {
-    const scoped = await fetchApiFootballFixturesForDate(date, true);
-    fixtures.push(...scoped);
+    let scoped = [];
+    try {
+      scoped = await fetchApiFootballFixturesForDate(date, true);
+      appendFixtures(scoped);
+    } catch (err) {
+      console.warn(`No se pudo leer API-Football filtrado para ${date}:`, err);
+    }
+
     if (!scoped.length) {
-      const fullDay = await fetchApiFootballFixturesForDate(date, false);
-      fixtures.push(...fullDay);
+      try {
+        const fullDay = await fetchApiFootballFixturesForDate(date, false);
+        appendFixtures(fullDay);
+      } catch (err) {
+        if (!fixtures.length) throw err;
+        console.warn(`No se pudo leer API-Football completo para ${date}:`, err);
+      }
     }
   }
+
   return fixtures;
+}
+
+function parseProviderNumber(value) {
+  if (Number.isInteger(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const n = Number(value);
+    if (Number.isInteger(n)) return n;
+  }
+  return null;
 }
 
 function buildClientMatchUpdate(localMatch, fixture) {
   const providerStatus = fixture?.fixture?.status?.short || null;
   const mappedStatus = mapApiMatchStatus(providerStatus);
-  const goalsHome = fixture?.goals?.home;
-  const goalsAway = fixture?.goals?.away;
+  const goalsHome = parseProviderNumber(fixture?.goals?.home);
+  const goalsAway = parseProviderNumber(fixture?.goals?.away);
   const { home, away } = fixtureTeams(fixture);
   const isSwapped = teamsMatch(localMatch.local, away) && teamsMatch(localMatch.visitante, home);
-  const hasScore = Number.isInteger(goalsHome) && Number.isInteger(goalsAway);
-  const isZeroZero = goalsHome === 0 && goalsAway === 0;
+  const hasScore = goalsHome !== null && goalsAway !== null;
   const shouldPersistScore = hasScore
     && (mappedStatus === MATCH_STATUS.FINAL
-      || ((mappedStatus === MATCH_STATUS.LIVE || mappedStatus === MATCH_STATUS.HALFTIME) && !isZeroZero));
-  const elapsed = fixture?.fixture?.status?.elapsed;
+      || mappedStatus === MATCH_STATUS.LIVE
+      || mappedStatus === MATCH_STATUS.HALFTIME);
+  const elapsed = parseProviderNumber(fixture?.fixture?.status?.elapsed);
 
   const update = {
     apiFootballFixtureId: fixture?.fixture?.id ?? localMatch.apiFootballFixtureId ?? null,
@@ -670,7 +706,7 @@ function buildClientMatchUpdate(localMatch, fixture) {
     lastLiveSync: new Date(),
   };
 
-  if (Number.isInteger(elapsed)) update.minuto = elapsed;
+  if (elapsed !== null) update.minuto = elapsed;
   else if (mappedStatus === MATCH_STATUS.PENDING || mappedStatus === MATCH_STATUS.FINAL) update.minuto = null;
 
   if (shouldPersistScore) {
@@ -708,26 +744,41 @@ async function syncLiveScoresFromClient({ force = false, silent = false } = {}) 
   const last = Number(localStorage.getItem(CLIENT_LIVE_SYNC_KEY) || 0);
   if (!force && now - last < CLIENT_LIVE_SYNC_COOLDOWN_MS) return false;
 
-  const dates = clientSyncDates(state.partidos);
+  const relevantMatches = state.partidos.filter(matchRelevantForClientSync);
+  const dates = clientSyncDates(relevantMatches);
   if (!dates.length) return false;
 
-  localStorage.setItem(CLIENT_LIVE_SYNC_KEY, String(now));
   const providerFixtures = await fetchClientLiveFixtures(dates);
+  localStorage.setItem(CLIENT_LIVE_SYNC_KEY, String(now));
   const { doc, updateDoc, serverTimestamp } = firestoreFns;
 
   let writes = 0;
-  for (const match of state.partidos.filter(matchRelevantForClientSync)) {
+  let failures = 0;
+  for (const match of relevantMatches) {
     const fixture = findProviderFixture(match, providerFixtures);
     if (!fixture) continue;
     const update = clientUpdateDiff(match, buildClientMatchUpdate(match, fixture));
     if (!Object.keys(update).length) continue;
     update.lastLiveSync = serverTimestamp();
-    await updateDoc(doc(db, 'partidos', match.docId), update);
-    writes += 1;
+    try {
+      await updateDoc(doc(db, 'partidos', match.docId), update);
+      writes += 1;
+    } catch (err) {
+      failures += 1;
+      console.warn(`No se pudo actualizar el partido ${match.id}:`, err);
+    }
   }
 
   if (writes && !silent) showToast(`Resultados actualizados (${writes})`, false);
   return true;
+}
+
+function handleClientLiveSyncError(err) {
+  console.warn('No se pudo actualizar marcador en cliente:', err);
+  const msg = String(err?.message || '');
+  if (/request limit|requests/i.test(msg)) {
+    setStatus('API de marcadores sin cuota por hoy', 'error');
+  }
 }
 
 function startLiveMinuteTimer() {
@@ -738,7 +789,7 @@ function startLiveMinuteTimer() {
     const hasLive = state.partidos.some(m => matchLive(m));
     const hasRelevant = state.partidos.some(matchRelevantForClientSync);
     if (hasRelevant) {
-      syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+      syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
     }
     if (!hasLive) return;
     const nextKey = liveMinuteRenderKey();
@@ -992,6 +1043,7 @@ function subscribeFirestore() {
   let partidos = [];
   let participantes = [];
   let pronosticosDocs = [];
+  let didInitialClientSync = false;
 
   const maybeUpdate = () => {
     if (!partidos.length || !participantes.length) return;
@@ -999,7 +1051,9 @@ function subscribeFirestore() {
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-    syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+    const force = !didInitialClientSync;
+    didInitialClientSync = true;
+    syncLiveScoresFromClient({ force, silent: true }).catch(handleClientLiveSyncError);
   };
 
   unsubscribers.push(
@@ -1058,7 +1112,7 @@ function subscribeAdmin() {
       state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
       if (state.adminEditingId === null) renderAdmin();
       setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-      syncLiveScoresFromClient({ silent: true }).catch(err => console.warn('No se pudo actualizar marcador en cliente:', err));
+      syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
     }, err => {
       console.error(err);
       setStatus('Error al leer partidos', 'error');
@@ -2196,6 +2250,7 @@ function switchView(viewKey) {
     renderDayTabs();
     renderPersonDetail();
     stopGruposPolling();
+    syncLiveScoresFromClient({ force: true, silent: true }).catch(handleClientLiveSyncError);
   } else if (target === 'grupos') {
     renderGrupos();
     startGruposPolling();
