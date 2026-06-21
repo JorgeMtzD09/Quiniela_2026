@@ -35,6 +35,7 @@ const MATCH_LOCK_INTERVAL_MS = 30000;
 const LIVE_MINUTE_TICK_MS = 1000;
 const CLIENT_LIVE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const CLIENT_LIVE_SYNC_KEY = 'quiniela_live_sync_last_v1';
+const INTRO_SEEN_KEY = 'quiniela_intro_seen_v3';
 const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
@@ -153,6 +154,92 @@ let state = {
 let matchLockTimer = null;
 let liveMinuteTimer = null;
 let lastRenderedLiveMinuteLabel = '';
+
+// ============================================================
+// Intro de carga
+// ============================================================
+function initIntroVideo() {
+  const overlay = document.getElementById('introOverlay');
+  const video = document.getElementById('introVideo');
+  const startButton = document.getElementById('introStart');
+  const shouldPlay = document.documentElement.classList.contains('intro-pending');
+
+  if (!overlay || !video || !shouldPlay) {
+    overlay?.remove();
+    document.documentElement.classList.remove('intro-pending');
+    return;
+  }
+
+  let isDone = false;
+  let fallbackTimer = null;
+
+  const finishIntro = () => {
+    if (isDone) return;
+    isDone = true;
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    document.body.classList.remove('intro-playing');
+    overlay.classList.add('is-fading');
+    window.setTimeout(() => {
+      document.documentElement.classList.remove('intro-pending');
+      overlay.remove();
+    }, 850);
+  };
+
+  const scheduleFinishFallback = () => {
+    if (!Number.isFinite(video.duration) || video.duration <= 0) return;
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    const remainingSeconds = Math.max(0, video.duration - video.currentTime);
+    fallbackTimer = window.setTimeout(finishIntro, (remainingSeconds + 1) * 1000);
+  };
+
+  document.body.classList.add('intro-playing');
+  video.controls = false;
+  video.muted = false;
+  video.volume = 1;
+  video.playsInline = true;
+
+  const rememberIntro = () => {
+    try {
+      sessionStorage.setItem(INTRO_SEEN_KEY, '1');
+    } catch (err) {
+      console.warn('No se pudo guardar el estado de intro:', err);
+    }
+  };
+
+  const playWithSound = async () => {
+    if (startButton) startButton.hidden = true;
+    video.muted = false;
+    video.volume = 1;
+    try {
+      await video.play();
+      rememberIntro();
+      scheduleFinishFallback();
+    } catch (err) {
+      console.warn('Intro con audio requiere interacción:', err);
+      if (startButton) startButton.hidden = false;
+    }
+  };
+
+  const handleIntroStart = e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!video.paused) return;
+    playWithSound();
+  };
+
+  overlay.addEventListener('pointerdown', handleIntroStart, { capture: true });
+  overlay.addEventListener('click', handleIntroStart, { capture: true });
+  startButton?.addEventListener('pointerdown', handleIntroStart);
+  startButton?.addEventListener('click', handleIntroStart);
+
+  video.addEventListener('ended', finishIntro, { once: true });
+  video.addEventListener('error', finishIntro, { once: true });
+  video.addEventListener('loadedmetadata', () => {
+    if (!video.paused) scheduleFinishFallback();
+  }, { once: true });
+
+  playWithSound();
+}
 
 // ============================================================
 // Hora de referencia (internet)
@@ -2173,6 +2260,7 @@ async function bootstrap() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initIntroVideo();
   initNavigation();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);

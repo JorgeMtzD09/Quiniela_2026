@@ -6,9 +6,25 @@
   <meta name="theme-color" content="#1a472a">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Quiniela Mundial 2026</title>
+  <script>
+    (() => {
+      try {
+        if (!sessionStorage.getItem('quiniela_intro_seen_v3')) {
+          document.documentElement.classList.add('intro-pending');
+        }
+      } catch (err) {
+        document.documentElement.classList.add('intro-pending');
+      }
+    })();
+  </script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div class="intro-overlay" id="introOverlay">
+    <video class="intro-video" id="introVideo" src="intro.mp4" autoplay playsinline preload="auto"></video>
+    <button class="intro-start" id="introStart" type="button" hidden>Comenzar</button>
+  </div>
+
   <header class="header">
     <div class="header-content">
       <h1>Quiniela Mundial 2026</h1>
