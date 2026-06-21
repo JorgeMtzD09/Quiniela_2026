@@ -123,16 +123,16 @@
 }
 
 .podium-label .rank-card {
-  width: clamp(98px, 28vw, 116px);
+  width: clamp(112px, 30vw, 132px);
 }
 
 .podium-label.slot-1 .rank-card {
-  width: clamp(108px, 31vw, 126px);
+  width: clamp(122px, 33vw, 144px);
 }
 
 .podium-label.tie-count-3 .rank-card,
 .podium-label.tie-count-4 .rank-card {
-  width: clamp(104px, 29vw, 118px);
+  width: clamp(126px, 34vw, 148px);
   min-height: 78px;
   padding: 7px 8px 9px;
 }
@@ -192,6 +192,57 @@
   border-radius: inherit;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent);
   pointer-events: none;
+}
+
+.rank-card.on-podium {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 7px;
+  min-height: 64px;
+  padding: 7px 9px 8px 8px;
+  text-align: left;
+}
+
+.rank-card.on-podium .rank-card-meta {
+  display: contents;
+}
+
+.rank-card.on-podium .rank-card-meta span:first-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--accent);
+  font-size: clamp(1.53rem, 5.65vw, 2.1rem);
+  font-weight: 950;
+  line-height: 0.82;
+  text-align: center;
+  letter-spacing: 0;
+  text-shadow: 0 5px 12px rgba(0, 0, 0, 0.28);
+}
+
+.rank-card.on-podium .rank-card-meta span:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+}
+
+.rank-card.on-podium .rank-card-meta span:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  color: var(--accent);
+  font-size: clamp(0.58rem, 1.9vw, 0.7rem);
+  white-space: nowrap;
+}
+
+.rank-card.on-podium .rank-card-name {
+  grid-column: 2;
+  grid-row: 2;
+  justify-content: flex-start;
+  margin-top: 6px;
+  text-align: left;
 }
 
 .rank-card-meta {
@@ -264,26 +315,63 @@
 }
 
 .rank-card.on-field {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  column-gap: 6px;
   width: max-content;
-  min-width: 88px;
-  max-width: 124px;
-  min-height: 46px;
-  padding: 6px 8px 7px;
+  min-width: 104px;
+  max-width: 142px;
+  min-height: 52px;
+  padding: 6px 8px 7px 7px;
   border-radius: 12px;
+  text-align: left;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.1) inset,
     0 9px 14px rgba(5, 12, 22, 0.24);
 }
 
 .rank-card.on-field .rank-card-name {
+  grid-column: 2;
+  grid-row: 2;
+  justify-content: flex-start;
   margin-top: 5px;
-  font-size: clamp(0.7rem, 2.45vw, 0.86rem);
+  font-size: clamp(0.72rem, 2.45vw, 0.88rem);
   line-height: 1.02;
+  text-align: left;
 }
 
 .rank-card.on-field .rank-card-meta {
-  gap: 3px;
+  display: contents;
+  gap: 0;
   font-size: clamp(0.54rem, 1.9vw, 0.64rem);
+}
+
+.rank-card.on-field .rank-card-meta span:first-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--accent);
+  font-size: clamp(1.2rem, 4.55vw, 1.6rem);
+  font-weight: 950;
+  line-height: 0.85;
+  text-align: center;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.rank-card.on-field .rank-card-meta span:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.rank-card.on-field .rank-card-meta span:last-child {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: end;
+  align-self: center;
+  color: var(--accent);
+  font-size: clamp(0.54rem, 1.9vw, 0.64rem);
+  white-space: nowrap;
 }
 
 .field-marker.is-last .rank-card {
@@ -373,7 +461,10 @@
 
 @media (max-width: 380px) {
   .rank-card { padding-inline: 9px; }
-  .rank-card.on-field { min-width: 84px; }
+  .rank-card.on-field {
+    grid-template-columns: 28px minmax(0, 1fr);
+    min-width: 100px;
+  }
 }
 
 @media (min-width: 600px) {

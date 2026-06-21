@@ -3,11 +3,11 @@ import { groupByRank } from './podio.js';
 
 const PODIUM = {
   1: { x: 0, z: -1.25, w: 1.02, h: 0.94, d: 0.7, color: 0xd49a13, dark: 0x7a4d05 },
-  2: { x: -1.22, z: -1.08, w: 0.82, h: 0.68, d: 0.64, color: 0xaeb8c4, dark: 0x66717c },
-  3: { x: 1.22, z: -1, w: 0.82, h: 0.56, d: 0.64, color: 0xb76328, dark: 0x713211 },
+  2: { x: -1.36, z: -1.08, w: 0.82, h: 0.68, d: 0.64, color: 0xaeb8c4, dark: 0x66717c },
+  3: { x: 1.36, z: -1, w: 0.82, h: 0.56, d: 0.64, color: 0xb76328, dark: 0x713211 },
 };
 
-const FIELD = { width: 3.55, depth: 2.24, x: 0, z: 1.82 };
+const FIELD = { width: 3.55, depth: 2.24, x: 0, z: 2.45 };
 
 const METAL_PALETTES = {
   1: ['#BF953F', '#FCF6BA', '#B38728', '#FBF5B7', '#AA771C'],
@@ -476,6 +476,14 @@ function ballSize(rank, total, onPodium) {
   return rank === 1 ? 0.175 : 0.165;
 }
 
+function fieldCardFootprint(peopleCount) {
+  const tieExtra = Math.min(Math.max(peopleCount - 1, 0), 3);
+  return {
+    width: 1.28 + tieExtra * 0.14,
+    depth: 0.96 + tieExtra * 0.14,
+  };
+}
+
 export class PodioScene {
   constructor(canvas, leaderboard) {
     this.canvas = canvas;
@@ -710,38 +718,94 @@ export class PodioScene {
     const groups = [...groupByRank(this.leaderboard).entries()].filter(([rank]) => rank > 3);
     const positions = new Map();
     const placed = [];
-    const minX = 1.1;
-    const minZ = 0.84;
+
+    const boundsFor = footprint => ({
+      minX: FIELD.x - FIELD.width / 2 + footprint.width / 2 + 0.18,
+      maxX: FIELD.x + FIELD.width / 2 - footprint.width / 2 - 0.18,
+      minZ: FIELD.z - FIELD.depth / 2 + footprint.depth / 2 + 0.14,
+      maxZ: FIELD.z + FIELD.depth / 2 - footprint.depth / 2 - 0.14,
+    });
+
+    const frameFor = (x, z, footprint) => {
+      const bounds = boundsFor(footprint);
+      const cx = Math.max(bounds.minX, Math.min(bounds.maxX, x));
+      const cz = Math.max(bounds.minZ, Math.min(bounds.maxZ, z));
+      return {
+        x: cx,
+        z: cz,
+        ...footprint,
+        left: cx - footprint.width / 2,
+        right: cx + footprint.width / 2,
+        top: cz - footprint.depth / 2,
+        bottom: cz + footprint.depth / 2,
+      };
+    };
+
+    const overlaps = (a, b) => (
+      a.left < b.right + 0.2 &&
+      a.right + 0.2 > b.left &&
+      a.top < b.bottom + 0.2 &&
+      a.bottom + 0.2 > b.top
+    );
+
+    const hasRoomFor = candidate => placed.every(other => !overlaps(candidate, other));
+
+    const randomFrame = footprint => {
+      const bounds = boundsFor(footprint);
+      return frameFor(
+        bounds.minX + Math.random() * (bounds.maxX - bounds.minX),
+        bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ),
+        footprint
+      );
+    };
 
     groups.forEach(([rank, people], index) => {
-      let chosen = null;
-      for (let attempt = 0; attempt < 90 && !chosen; attempt++) {
-        const xRange = FIELD.width * 0.39;
-        const zRange = FIELD.depth * 0.31;
-        const candidate = {
-          x: FIELD.x + (Math.random() - 0.5) * xRange * 2,
-          z: FIELD.z + (Math.random() - 0.5) * zRange * 2,
-        };
-        const crowdPadding = Math.min(people.length - 1, 3) * 0.08;
-        const hasRoom = placed.every(point => {
-          const dx = Math.abs(candidate.x - point.x);
-          const dz = Math.abs(candidate.z - point.z);
-          return dx >= minX + crowdPadding || dz >= minZ + crowdPadding * 0.6;
+      const footprint = fieldCardFootprint(people.length);
+      const bounds = boundsFor(footprint);
+      const fallbackSlots = [
+        { x: bounds.minX, z: bounds.minZ },
+        { x: bounds.maxX, z: bounds.maxZ },
+        { x: bounds.maxX, z: bounds.minZ },
+        { x: bounds.minX, z: bounds.maxZ },
+        { x: FIELD.x, z: bounds.minZ },
+        { x: FIELD.x, z: bounds.maxZ },
+      ].sort(() => Math.random() - 0.5);
+
+      const candidates = [];
+      if (placed.length) {
+        placed.forEach(frame => {
+          const oppositeX = frame.x <= FIELD.x ? bounds.maxX : bounds.minX;
+          const oppositeZ = frame.z <= FIELD.z ? bounds.maxZ : bounds.minZ;
+          candidates.push(frameFor(oppositeX, frame.z, footprint));
+          candidates.push(frameFor(oppositeX, oppositeZ, footprint));
+          candidates.push(frameFor(frame.x, oppositeZ, footprint));
         });
-        if (hasRoom) chosen = candidate;
       }
 
-      if (!chosen) {
-        const columns = Math.max(groups.length, 2);
-        const spread = FIELD.width * 0.74;
-        chosen = {
-          x: FIELD.x - spread / 2 + (spread * index) / (columns - 1) + (Math.random() - 0.5) * 0.14,
-          z: FIELD.z + (index % 2 ? 0.35 : -0.28) + (Math.random() - 0.5) * 0.12,
-        };
+      fallbackSlots.forEach(slot => candidates.push(frameFor(slot.x, slot.z, footprint)));
+      for (let attempt = 0; attempt < 80; attempt++) {
+        candidates.push(randomFrame(footprint));
       }
+
+      candidates.sort((a, b) => {
+        if (!placed.length) return Math.random() - 0.5;
+        const distanceToPlaced = candidate => Math.min(...placed.map(frame => (
+          Math.hypot(candidate.x - frame.x, candidate.z - frame.z)
+        )));
+        return distanceToPlaced(b) - distanceToPlaced(a);
+      });
+
+      let chosen = null;
+      for (const candidate of candidates) {
+        if (hasRoomFor(candidate)) {
+          chosen = candidate;
+          break;
+        }
+      }
+      if (!chosen) chosen = candidates[index % candidates.length] || randomFrame(footprint);
 
       placed.push(chosen);
-      positions.set(rank, chosen);
+      positions.set(rank, { x: chosen.x, z: chosen.z });
     });
 
     return positions;
@@ -1019,11 +1083,11 @@ export class PodioScene {
     if (aspect < 0.62) {
       this.camera.fov = 38;
       this.camera.position.set(0, 5.1, 9.35);
-      this.camera.lookAt(0, 0.2, 0.82);
+      this.camera.lookAt(0, 0.36, 0.72);
     } else {
       this.camera.fov = 33;
       this.camera.position.set(0, 4.9, 9.1);
-      this.camera.lookAt(0, 0.22, 0.88);
+      this.camera.lookAt(0, 0.34, 0.78);
     }
     this.camera.updateProjectionMatrix();
   }
