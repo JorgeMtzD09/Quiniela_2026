@@ -1,0 +1,406 @@
+/* Podio 3D scene. Canvas draws the world; HTML only handles readable labels. */
+
+#viewPodio.active {
+  background: #e9eef5;
+  border-radius: 0;
+}
+
+.view-podio-screen {
+  position: relative;
+}
+
+.podio-list {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.podio-list.podio-3d-mode {
+  overflow: auto;
+}
+
+.podio-stage {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  min-height: max(var(--podio-view-height), 720px);
+  height: max(var(--podio-view-height), 720px);
+  overflow: hidden;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 50% 10%, rgba(255, 255, 255, 0.98) 0 18%, rgba(238, 243, 249, 0.72) 42%, rgba(214, 223, 234, 0.98) 100%),
+    #e9eef5;
+}
+
+.podio-webgl {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.podio-audio-gate {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(248, 250, 252, 0.42), rgba(226, 232, 240, 0.74) 58%, rgba(201, 211, 224, 0.82) 100%);
+  backdrop-filter: blur(12px) saturate(1.1);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+}
+
+.podio-audio-gate[hidden] {
+  display: none;
+}
+
+.podio-audio-start {
+  min-width: 168px;
+  min-height: 52px;
+  padding: 0 24px;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02) 38%),
+    linear-gradient(180deg, #252a3a 0%, #121826 100%);
+  border: 1px solid rgba(244, 200, 74, 0.62);
+  border-radius: 999px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.18) inset,
+    0 18px 34px rgba(15, 23, 42, 0.24),
+    0 0 0 7px rgba(244, 200, 74, 0.1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.podio-audio-start:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.podio-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.podium-labels {
+  position: absolute;
+  inset: 0;
+}
+
+.podium-label-row {
+  position: absolute;
+  inset: 0;
+}
+
+.podium-label,
+.field-marker {
+  position: absolute;
+  left: var(--label-x, 50%);
+  top: var(--label-y, 50%);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  width: max-content;
+  max-width: min(42vw, 174px);
+  transform: translate(-50%, -100%);
+  opacity: 1;
+  transition: left 220ms ease, top 220ms ease, opacity 180ms ease;
+  will-change: left, top;
+}
+
+.podium-label {
+  min-width: min(30vw, 112px);
+}
+
+.podium-label .rank-card {
+  width: clamp(98px, 28vw, 116px);
+}
+
+.podium-label.slot-1 .rank-card {
+  width: clamp(108px, 31vw, 126px);
+}
+
+.podium-label.tie-count-3 .rank-card,
+.podium-label.tie-count-4 .rank-card {
+  width: clamp(104px, 29vw, 118px);
+  min-height: 78px;
+  padding: 7px 8px 9px;
+}
+
+.podium-label.tie-count-3 .rank-card-name,
+.podium-label.tie-count-4 .rank-card-name {
+  gap: 1px 4px;
+  margin-top: 5px;
+  font-size: clamp(0.78rem, 2.65vw, 0.92rem);
+  line-height: 1.04;
+}
+
+.podium-label.tie-count-3 .rank-card-meta,
+.podium-label.tie-count-4 .rank-card-meta {
+  font-size: clamp(0.58rem, 1.9vw, 0.68rem);
+}
+
+.podio-has-webgl .podium-label:not(.is-aligned),
+.podio-has-webgl .field-marker:not(.is-aligned) {
+  opacity: 0;
+}
+
+.podium-label.is-empty {
+  visibility: hidden;
+}
+
+.field-labels {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+
+.rank-card {
+  position: relative;
+  z-index: 6;
+  width: min(100%, 158px);
+  min-height: 60px;
+  padding: 8px 9px 9px;
+  color: #f8fafc;
+  text-align: center;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 32%),
+    linear-gradient(180deg, #202a3a 0%, #111827 58%, #0b111b 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, rgba(255, 255, 255, 0.24));
+  border-radius: 17px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.13) inset,
+    0 18px 28px rgba(15, 23, 42, 0.22),
+    0 7px 12px rgba(15, 23, 42, 0.16);
+}
+
+.rank-card::after {
+  position: absolute;
+  content: '';
+  inset: 1px 1px auto;
+  height: 44%;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), transparent);
+  pointer-events: none;
+}
+
+.rank-card-meta {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 4px;
+  font-size: clamp(0.62rem, 2vw, 0.76rem);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.rank-card-meta span:first-child { text-align: left; }
+.rank-card-meta span:last-child { text-align: right; white-space: nowrap; }
+
+.rank-crown {
+  color: #f6c94c;
+  filter: drop-shadow(0 3px 5px rgba(148, 99, 0, 0.45));
+}
+
+.rank-card-name {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  margin-top: 7px;
+  font-size: clamp(0.9rem, 3.2vw, 1.1rem);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.name-divider {
+  color: rgba(248, 250, 252, 0.42);
+  font-weight: 800;
+}
+
+.rank-card.is-tie .rank-card-name {
+  align-items: center;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 1px;
+}
+
+.tie-name {
+  display: block;
+}
+
+.tie-chip {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  color: #f8fafc;
+  font-size: 0.57rem;
+  font-weight: 850;
+  line-height: 1;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--accent) 72%, #0f172a);
+  border-radius: 999px;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.24);
+}
+
+.rank-card.on-field {
+  width: max-content;
+  min-width: 88px;
+  max-width: 124px;
+  min-height: 46px;
+  padding: 6px 8px 7px;
+  border-radius: 12px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
+    0 9px 14px rgba(5, 12, 22, 0.24);
+}
+
+.rank-card.on-field .rank-card-name {
+  margin-top: 5px;
+  font-size: clamp(0.7rem, 2.45vw, 0.86rem);
+  line-height: 1.02;
+}
+
+.rank-card.on-field .rank-card-meta {
+  gap: 3px;
+  font-size: clamp(0.54rem, 1.9vw, 0.64rem);
+}
+
+.field-marker.is-last .rank-card {
+  color: #d7dce3;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.01) 32%),
+    linear-gradient(180deg, #252a32 0%, #171b22 58%, #0e1117 100%);
+  border-color: rgba(148, 163, 184, 0.46);
+  filter: grayscale(0.5) saturate(0.62);
+  opacity: 0.86;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.07) inset,
+    0 7px 12px rgba(5, 12, 22, 0.2);
+}
+
+.field-marker.is-last .rank-card-meta {
+  color: #9ca3af;
+}
+
+.field-tail {
+  width: 0;
+  height: 0;
+  margin-top: -1px;
+  border-right: 9px solid transparent;
+  border-left: 9px solid transparent;
+  border-top: 10px solid #111827;
+  filter: drop-shadow(0 4px 4px rgba(15, 23, 42, 0.24));
+}
+
+.field-marker.is-last .field-tail {
+  border-top-color: #171b22;
+  opacity: 0.8;
+}
+
+.ball-cluster {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+  min-height: 50px;
+  margin-top: 2px;
+}
+
+.podium-label .ball-cluster {
+  margin-top: 8px;
+}
+
+.podio-has-webgl .ball-cluster {
+  visibility: hidden;
+}
+
+.podio-has-webgl .field-marker .ball-cluster {
+  display: none;
+}
+
+.ball-token {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(42px, 10vw, 58px);
+  height: clamp(42px, 10vw, 58px);
+  margin-inline: -7px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 42% 38%, #fff 0 36%, #dce4ec 62%, #8994a1 100%);
+  box-shadow:
+    0 14px 20px rgba(15, 23, 42, 0.27),
+    0 0 0 6px color-mix(in srgb, var(--accent) 76%, white),
+    0 0 0 9px rgba(255, 255, 255, 0.55);
+}
+
+.ball-aura {
+  position: absolute;
+  inset: -13px;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 42%, transparent) 0%, transparent 70%);
+  filter: blur(2px);
+}
+
+.ball-svg {
+  width: 78%;
+  height: 78%;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.24));
+}
+
+@media (max-width: 380px) {
+  .rank-card { padding-inline: 9px; }
+  .rank-card.on-field { min-width: 84px; }
+}
+
+@media (min-width: 600px) {
+  .podio-stage {
+    height: min(var(--podio-view-height), 760px);
+  }
+
+  .rank-card {
+    width: min(100%, 174px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rank-card,
+  .field-tail,
+  .ball-token {
+    animation: podio-label-enter 420ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+
+@keyframes podio-label-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}

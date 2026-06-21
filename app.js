@@ -3,6 +3,14 @@ import {
   GROUP_LETTERS, computeGroupStandings, parseApiStandings, mergeStandings,
   displayTeamName, teamFlag, getMatchGroup, teamsMatch,
 } from './fixtures-data.js';
+import {
+  renderPodiumScreen,
+  mapAppPodioToLeaderboard,
+  disposePodiumScene,
+  DEMO_LEADERBOARD,
+  DEMO_LEADERBOARD_TIE,
+  DEMO_LEADERBOARD_TRIPLE_TIE,
+} from './podio.js';
 
 // ============================================================
 // CONFIGURACIÓN — Firebase
@@ -36,6 +44,8 @@ const LIVE_MINUTE_TICK_MS = 1000;
 const CLIENT_LIVE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const CLIENT_LIVE_SYNC_KEY = 'quiniela_live_sync_last_v1';
 const INTRO_SEEN_KEY = 'quiniela_intro_seen_v3';
+const PODIO_MUSIC_SRC = 'assets/podio-song.mp3';
+const PODIO_MUSIC_VOLUME = 0.54;
 const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
 const MATCH_DURATION_MS = 120 * 60 * 1000;
@@ -239,6 +249,201 @@ function initIntroVideo() {
   }, { once: true });
 
   playWithSound();
+}
+
+// ============================================================
+// Música del Podio
+// ============================================================
+let podioMusicAudio = null;
+let podioMusicFadeFrame = null;
+let podioMusicToken = 0;
+let podioMusicManuallyPaused = false;
+
+function getPodioMusicAudio() {
+  if (podioMusicAudio) return podioMusicAudio;
+
+  podioMusicAudio = new Audio(PODIO_MUSIC_SRC);
+  podioMusicAudio.loop = true;
+  podioMusicAudio.preload = 'auto';
+  podioMusicAudio.volume = 0;
+  podioMusicAudio.addEventListener('error', () => {
+    console.warn('No se pudo cargar la música del podio.');
+  });
+  return podioMusicAudio;
+}
+
+function setPodioAudioGate(visible) {
+  const gate = document.getElementById('podioAudioGate');
+  if (!gate) return;
+  gate.hidden = !(visible && state.activeView === 'podio');
+}
+
+function updatePodioAudioPauseButton() {
+  const button = document.getElementById('podioAudioPause');
+  if (!button) return;
+  button.hidden = state.activeView !== 'podio';
+  button.textContent = podioMusicManuallyPaused ? 'Reanudar audio' : 'Pausar audio';
+  button.classList.toggle('is-resume', podioMusicManuallyPaused);
+}
+
+function fadePodioMusicTo(targetVolume, durationMs = 700, token = podioMusicToken) {
+  const audio = podioMusicAudio;
+  if (!audio) return;
+
+  if (podioMusicFadeFrame) {
+    cancelAnimationFrame(podioMusicFadeFrame);
+    podioMusicFadeFrame = null;
+  }
+
+  const startVolume = audio.volume;
+  const startedAt = performance.now();
+  const target = Math.max(0, Math.min(1, targetVolume));
+
+  const tick = now => {
+    if (token !== podioMusicToken) return;
+
+    const progress = Math.min(1, (now - startedAt) / durationMs);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    audio.volume = startVolume + (target - startVolume) * eased;
+
+    if (progress < 1) {
+      podioMusicFadeFrame = requestAnimationFrame(tick);
+      return;
+    }
+
+    podioMusicFadeFrame = null;
+    audio.volume = target;
+    if (target === 0) {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch (err) {
+        console.warn('No se pudo reiniciar la música del podio:', err);
+      }
+    }
+  };
+
+  podioMusicFadeFrame = requestAnimationFrame(tick);
+}
+
+async function startPodioMusic() {
+  if (state.activeView !== 'podio') return;
+  if (podioMusicManuallyPaused) return;
+
+  const token = ++podioMusicToken;
+  const audio = getPodioMusicAudio();
+  audio.muted = false;
+  if (podioMusicFadeFrame) {
+    cancelAnimationFrame(podioMusicFadeFrame);
+    podioMusicFadeFrame = null;
+  }
+  audio.volume = 0;
+  try {
+    audio.currentTime = 0;
+  } catch (err) {
+    console.warn('No se pudo reiniciar la música del podio:', err);
+  }
+
+  try {
+    await audio.play();
+    if (token !== podioMusicToken || state.activeView !== 'podio') {
+      audio.pause();
+      try {
+        audio.currentTime = 0;
+      } catch (err) {
+        console.warn('No se pudo reiniciar la música del podio:', err);
+      }
+      return;
+    }
+    setPodioAudioGate(false);
+    fadePodioMusicTo(PODIO_MUSIC_VOLUME, 900, token);
+  } catch (err) {
+    if (token === podioMusicToken && state.activeView === 'podio') {
+      setPodioAudioGate(true);
+    }
+  }
+}
+
+function stopPodioMusic() {
+  setPodioAudioGate(false);
+  podioMusicManuallyPaused = false;
+  updatePodioAudioPauseButton();
+  if (!podioMusicAudio) return;
+  const token = ++podioMusicToken;
+  fadePodioMusicTo(0, 650, token);
+}
+
+function pausePodioMusic() {
+  if (state.activeView !== 'podio') return;
+
+  podioMusicManuallyPaused = true;
+  updatePodioAudioPauseButton();
+  const audio = podioMusicAudio;
+  ++podioMusicToken;
+  if (podioMusicFadeFrame) {
+    cancelAnimationFrame(podioMusicFadeFrame);
+    podioMusicFadeFrame = null;
+  }
+  if (!audio) return;
+  audio.pause();
+  audio.volume = PODIO_MUSIC_VOLUME;
+}
+
+async function resumePodioMusic() {
+  if (state.activeView !== 'podio') return;
+
+  podioMusicManuallyPaused = false;
+  updatePodioAudioPauseButton();
+
+  const token = ++podioMusicToken;
+  const audio = getPodioMusicAudio();
+  audio.muted = false;
+  if (podioMusicFadeFrame) {
+    cancelAnimationFrame(podioMusicFadeFrame);
+    podioMusicFadeFrame = null;
+  }
+  audio.volume = 0;
+
+  try {
+    await audio.play();
+    if (token !== podioMusicToken || state.activeView !== 'podio') {
+      audio.pause();
+      return;
+    }
+    setPodioAudioGate(false);
+    fadePodioMusicTo(PODIO_MUSIC_VOLUME, 500, token);
+  } catch (err) {
+    if (token === podioMusicToken && state.activeView === 'podio') {
+      setPodioAudioGate(true);
+    }
+  }
+}
+
+function initPodioMusic() {
+  const startButton = document.getElementById('podioAudioStart');
+  const pauseButton = document.getElementById('podioAudioPause');
+  startButton?.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    startPodioMusic();
+  });
+  pauseButton?.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (podioMusicManuallyPaused) {
+      resumePodioMusic();
+    } else {
+      pausePodioMusic();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopPodioMusic();
+    } else if (state.activeView === 'podio') {
+      startPodioMusic();
+    }
+  });
 }
 
 // ============================================================
@@ -637,6 +842,7 @@ function logout() {
   state.pronosticos = {};
   state.pronosticosMeta = {};
   state.podio = [];
+  disposePodiumScene();
   state.apiStandings = null;
   state.apiStandingsAt = null;
   closeModal();
@@ -1235,248 +1441,36 @@ function teamBlock(str, side) {
     </div>`;
 }
 
-function getMedal(rank) {
-  if (rank === 1) return '🥇';
-  if (rank === 2) return '🥈';
-  if (rank === 3) return '🥉';
-  return '';
-}
-
 let lastPodioSig = '';
 
 function podioSignature() {
   return state.podio.map(p => `${p.clave}:${p.rank}:${p.puntos}`).join('|');
 }
 
-function buildPodioMarcador(p, { last = false } = {}) {
-  const rankClass = p.rank <= 3 ? `rank-${p.rank}` : '';
-  const lastClass = last ? 'rank-last' : '';
-  return `
-    <div class="podium-marcador ${rankClass} ${lastClass}">
-      <div class="marcador-header">
-        <span class="marcador-rank">${p.rank}º</span>
-        <span class="marcador-pts">${p.puntos} pts</span>
-      </div>
-      <div class="marcador-name">${p.nombre}</div>
-    </div>`;
-}
-
-function buildPodioStackEntry(person, { baseDelay, animate, stackIndex, stackDelay = 340 }) {
-  const delay = baseDelay + stackIndex * stackDelay;
-  return `
-    <div class="podium-stack-entry" style="--podio-delay: ${delay}ms; --stack-i: ${stackIndex}">
-      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador' : ''}" style="--podio-delay: ${delay}ms">
-        ${buildPodioMarcador(person)}
-      </div>
-      <div class="podium-ball-wrap ${animate ? 'podio-anim-drop' : ''}" style="--podio-delay: ${delay}ms">
-        <div class="podium-ball ${animate ? 'podio-anim-bounce' : ''}" style="--podio-delay: ${delay}ms" aria-hidden="true">
-          <span class="ball-skin">⚽</span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function buildPodioSlot(rank, people, baseDelay, animate) {
-  const blockClass = `podium-block block-${rank} rank-${rank}`;
-  const list = Array.isArray(people) ? people : (people ? [people] : []);
-  const tieClass = list.length > 1 ? `podium-slot-tied podium-tie-${Math.min(list.length, 5)}` : '';
-
-  if (!list.length) {
-    return `
-      <div class="podium-slot slot-${rank} podium-slot-empty">
-        <div class="${blockClass}"></div>
-      </div>`;
-  }
-
-  const stacked = list.map((person, i) =>
-    buildPodioStackEntry(person, { baseDelay, animate, stackIndex: i })
-  ).join('');
-
-  return `
-    <div class="podium-slot slot-${rank} ${tieClass}" style="--podio-delay: ${baseDelay}ms; --tie-count: ${list.length}">
-      <div class="podium-stack">
-        ${stacked}
-      </div>
-      <div class="${blockClass}">
-        <span class="podium-medal">${getMedal(rank)}</span>
-      </div>
-    </div>`;
-}
-
-function getPodiumByRank(podio) {
-  const byRank = { 1: [], 2: [], 3: [] };
-  podio.forEach(p => {
-    if (p.rank <= 3) byRank[p.rank].push(p);
-  });
-  return byRank;
-}
-
-function shuffleInPlace(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
-const FIELD_SLOT_W = 26;
-const FIELD_SLOT_H = 34;
-const FIELD_SLOT_PAD = 4;
-const FIELD_SLOT_GAP = 2;
-
-function rectsOverlap(a, b, gap = FIELD_SLOT_GAP) {
-  return !(
-    a.x + a.w + gap <= b.x ||
-    b.x + b.w + gap <= a.x ||
-    a.y + a.h + gap <= b.y ||
-    b.y + b.h + gap <= a.y
-  );
-}
-
-function gridFieldPlacement(player, placed) {
-  const stepX = FIELD_SLOT_W + FIELD_SLOT_GAP;
-  const stepY = FIELD_SLOT_H + FIELD_SLOT_GAP;
-  for (let y = FIELD_SLOT_PAD; y + FIELD_SLOT_H <= 100 - FIELD_SLOT_PAD; y += stepY) {
-    for (let x = FIELD_SLOT_PAD; x + FIELD_SLOT_W <= 100 - FIELD_SLOT_PAD; x += stepX) {
-      const rect = { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H };
-      if (placed.every(p => !rectsOverlap(rect, p.rect))) {
-        return { player, x, y, rect };
-      }
-    }
-  }
-  const n = placed.length;
-  const cols = Math.max(1, Math.floor((100 - FIELD_SLOT_PAD * 2) / stepX));
-  const x = FIELD_SLOT_PAD + (n % cols) * stepX * 0.85;
-  const y = FIELD_SLOT_PAD + Math.floor(n / cols) * stepY * 0.85;
-  return { player, x, y, rect: { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H } };
-}
-
-function layoutFieldPlayers(players) {
-  if (!players.length) return new Map();
-  const order = shuffleInPlace([...players]);
-  const placed = [];
-
-  for (const player of order) {
-    let spot = null;
-    for (let attempt = 0; attempt < 120; attempt++) {
-      const x = FIELD_SLOT_PAD + Math.random() * (100 - FIELD_SLOT_W - FIELD_SLOT_PAD * 2);
-      const y = FIELD_SLOT_PAD + Math.random() * (100 - FIELD_SLOT_H - FIELD_SLOT_PAD * 2);
-      const rect = { x, y, w: FIELD_SLOT_W, h: FIELD_SLOT_H };
-      if (placed.every(p => !rectsOverlap(rect, p.rect))) {
-        spot = { player, x, y, rect };
-        break;
-      }
-    }
-    if (!spot) spot = gridFieldPlacement(player, placed);
-    placed.push(spot);
-  }
-
-  return new Map(placed.map(p => [p.player.clave, p]));
-}
-
-function buildPodioFieldEntry(p, { delay, animate, last, index, placement }) {
-  const posStyle = placement
-    ? `left: ${placement.x.toFixed(2)}%; top: ${placement.y.toFixed(2)}%;`
-    : '';
-  if (last) {
-    return `
-    <div class="podio-field-entry rank-last ${animate ? 'podio-anim-last-roll' : ''}" style="--podio-delay: ${delay}ms; --field-i: ${index}; ${posStyle}">
-      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador-rest podio-reveal-marcador-sad' : ''}" style="--podio-delay: ${delay}ms">
-        ${buildPodioMarcador(p, { last: true })}
-      </div>
-      <div class="podium-ball-wrap">
-        <div class="podium-ball" aria-hidden="true">
-          <span class="ball-skin">⚽</span>
-        </div>
-      </div>
-    </div>`;
-  }
-  return `
-    <div class="podio-field-entry" style="--podio-delay: ${delay}ms; --field-i: ${index}; ${posStyle}">
-      <div class="podium-marcador-wrap ${animate ? 'podio-reveal-marcador-rest' : ''}" style="--podio-delay: ${delay}ms">
-        ${buildPodioMarcador(p, { last: false })}
-      </div>
-      <div class="podium-ball-wrap ${animate ? 'podio-anim-drop' : ''}" style="--podio-delay: ${delay}ms">
-        <div class="podium-ball podio-anim-bounce" style="--podio-delay: ${delay}ms" aria-hidden="true">
-          <span class="ball-skin">⚽</span>
-        </div>
-      </div>
-    </div>`;
-}
-
-function buildPodioRest(rest, animate, maxRank) {
-  if (!rest.length) return '';
-  const regular = rest.filter(p => p.rank !== maxRank);
-  const lastOnes = rest.filter(p => p.rank === maxRank);
-  const allField = [...regular, ...lastOnes];
-  const placements = layoutFieldPlayers(allField);
-
-  let delay = 1100;
-  const regularHtml = regular.map((p, i) => {
-    const html = buildPodioFieldEntry(p, {
-      delay,
-      animate,
-      last: false,
-      index: i,
-      placement: placements.get(p.clave),
-    });
-    delay += 420;
-    return html;
-  }).join('');
-
-  let lastDelay = delay + (regular.length ? 180 : 0);
-  const lastHtml = lastOnes.map((p, i) => {
-    const html = buildPodioFieldEntry(p, {
-      delay: lastDelay,
-      animate,
-      last: true,
-      index: regular.length + i,
-      placement: placements.get(p.clave),
-    });
-    lastDelay += 280;
-    return html;
-  }).join('');
-
-  return `
-    <div class="podio-field">
-      <div class="podio-field-grass" aria-hidden="true"></div>
-      <div class="podio-field-lines" aria-hidden="true"></div>
-      <div class="podio-field-players">
-        ${regularHtml}${lastHtml}
-      </div>
-    </div>`;
-}
-
-const PODIO_FIELD_SETTLE_MS = 2800;
-const PODIO_LAST_SETTLE_MS = 3600;
-let podioFieldTimers = [];
-
-function setupPodioFieldSettle(container, animate) {
-  podioFieldTimers.forEach(clearTimeout);
-  podioFieldTimers = [];
-  if (!animate) {
-    container.querySelectorAll('.podio-field-entry .podium-marcador-wrap').forEach(el => {
-      el.classList.add('marcador-visible');
-    });
-    return;
-  }
-  container.querySelectorAll('.podio-field-entry').forEach(entry => {
-    const delay = parseInt(entry.style.getPropertyValue('--podio-delay') || '0', 10);
-    const settleMs = entry.classList.contains('rank-last') ? PODIO_LAST_SETTLE_MS : PODIO_FIELD_SETTLE_MS;
-    podioFieldTimers.push(setTimeout(() => {
-      entry.querySelector('.podium-marcador-wrap')?.classList.add('marcador-visible');
-    }, delay + settleMs));
-  });
-}
-
 function renderPodio(forceAnimate = false) {
   const el = document.getElementById('podioContent');
+  if (!el) return;
+
+  const mockPodio = new URLSearchParams(window.location.search).get('podioMock');
+  if (mockPodio === 'ties') {
+    lastPodioSig = 'mock:ties';
+    renderPodiumScreen(el, DEMO_LEADERBOARD_TIE, { animate: forceAnimate });
+    return;
+  }
+  if (mockPodio === 'triple') {
+    lastPodioSig = 'mock:triple';
+    renderPodiumScreen(el, DEMO_LEADERBOARD_TRIPLE_TIE, { animate: forceAnimate });
+    return;
+  }
+  if (mockPodio === 'field') {
+    lastPodioSig = 'mock:field';
+    renderPodiumScreen(el, DEMO_LEADERBOARD, { animate: forceAnimate });
+    return;
+  }
+
   if (!state.podio.length) {
-    podioFieldTimers.forEach(clearTimeout);
-    podioFieldTimers = [];
-    el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando podio...</div>';
-    el.classList.remove('podio-animate');
     lastPodioSig = '';
+    renderPodiumScreen(el, [], { animate: false });
     return;
   }
 
@@ -1484,24 +1478,7 @@ function renderPodio(forceAnimate = false) {
   const animate = forceAnimate || sig !== lastPodioSig;
   lastPodioSig = sig;
 
-  const maxRank = Math.max(...state.podio.map(p => p.rank));
-  const byRank = getPodiumByRank(state.podio);
-  const rest = state.podio.filter(p => p.rank > 3);
-  const topDelays = { 2: 0, 1: 450, 3: 900 };
-  const hasPodiumTies = [1, 2, 3].some(r => byRank[r].length > 1);
-
-  el.innerHTML = `
-    <div class="podio-stage">
-      <div class="podio-podium ${hasPodiumTies ? 'podio-podium-tied' : ''}">
-        ${buildPodioSlot(2, byRank[2], topDelays[2], animate)}
-        ${buildPodioSlot(1, byRank[1], topDelays[1], animate)}
-        ${buildPodioSlot(3, byRank[3], topDelays[3], animate)}
-      </div>
-      ${buildPodioRest(rest, animate, maxRank)}
-    </div>`;
-
-  el.classList.toggle('podio-animate', animate);
-  setupPodioFieldSettle(el, animate);
+  renderPodiumScreen(el, mapAppPodioToLeaderboard(state.podio), { animate });
 }
 
 function getMatchDayGroups(partidos) {
@@ -2134,7 +2111,14 @@ function switchView(viewKey) {
   } else {
     stopGruposPolling();
   }
-  if (target === 'podio') renderPodio(true);
+  updatePodioAudioPauseButton();
+  if (target === 'podio') {
+    podioMusicManuallyPaused = false;
+    startPodioMusic();
+    renderPodio(true);
+  } else {
+    stopPodioMusic();
+  }
   updateJumpButton();
 }
 
@@ -2262,6 +2246,7 @@ async function bootstrap() {
 document.addEventListener('DOMContentLoaded', () => {
   initIntroVideo();
   initNavigation();
+  initPodioMusic();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);

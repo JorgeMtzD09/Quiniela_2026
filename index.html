@@ -18,6 +18,7 @@
     })();
   </script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="podio.css">
 </head>
 <body>
   <div class="intro-overlay" id="introOverlay">
@@ -42,8 +43,11 @@
   </header>
 
   <div class="status-bar" id="statusBar">
-    <span class="status-dot"></span>
-    <span id="statusText">Cargando...</span>
+    <span class="status-main">
+      <span class="status-dot"></span>
+      <span id="statusText">Cargando...</span>
+    </span>
+    <button class="status-audio-pause" id="podioAudioPause" type="button" hidden>Pausar audio</button>
   </div>
 
   <main class="main">
@@ -64,8 +68,11 @@
       </div>
     </section>
 
-    <section class="view" id="viewPodio">
+    <section class="view view-podio-screen" id="viewPodio">
       <div id="podioContent" class="podio-list"></div>
+      <div class="podio-audio-gate" id="podioAudioGate" hidden>
+        <button class="podio-audio-start" id="podioAudioStart" type="button">Cargar Podio</button>
+      </div>
     </section>
 
     <section class="view" id="viewInfo">
