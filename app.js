@@ -1,7 +1,7 @@
 import {
   formatDateCDMX, dayKeyCDMX, formatDayHeaderCDMX, formatDayTabCDMX,
   GROUP_LETTERS, computeGroupStandings, parseApiStandings, mergeStandings,
-  displayTeamName, teamFlag, getMatchGroup, teamsMatch,
+  displayTeamName, teamFlag, getMatchGroup, teamsMatch, etToDate,
 } from './fixtures-data.js';
 import {
   renderPodiumScreen,
@@ -16,6 +16,9 @@ import {
 // CONFIGURACIÓN — Firebase
 // ============================================================
 export const CONFIG = {
+  features: {
+    knockoutEnabled: false,
+  },
   firebase: {
     apiKey: 'AIzaSyDwEIfkoudtZ6QQge3agKMqs932kg-SHEE',
     authDomain: 'quiniela-2026-110e5.firebaseapp.com',
@@ -52,6 +55,90 @@ const MATCH_DURATION_MS = 120 * 60 * 1000;
 const CLIENT_LIVE_SYNC_BEFORE_MS = 30 * 60 * 1000;
 const CLIENT_LIVE_SYNC_AFTER_MS = MATCH_DURATION_MS + 30 * 60 * 1000;
 const LIVE_SYNC_STALE_MS = 3 * 60 * 1000;
+const KNOCKOUT_ID_START = 101;
+const KNOCKOUT_ZOOM_MAX = 1.55;
+const KNOCKOUT_CARD_WIDTH = 330;
+const KNOCKOUT_COL_GAP = 96;
+const KNOCKOUT_SLOT_HEIGHT = 292;
+const KNOCKOUT_CARD_MID = 122;
+const KNOCKOUT_BOARD_PADDING_X = 36;
+const KNOCKOUT_BOARD_PADDING_TOP = 82;
+const KNOCKOUT_PINCH_SENSITIVITY = 1.8;
+const KNOCKOUT_WHEEL_ZOOM_SPEED = 0.006;
+const KNOCKOUT_FOCUS_ZOOM = 1.05;
+
+const KNOCKOUT_ROUNDS = [
+  { key: 'r32', title: 'Round de 32', className: 'round-r32' },
+  { key: 'r16', title: 'Octavos', className: 'round-r16' },
+  { key: 'qf', title: 'Cuartos', className: 'round-qf' },
+  { key: 'sf', title: 'Semifinales', className: 'round-sf' },
+  { key: 'final', title: 'Final', className: 'round-final' },
+  { key: 'sf-right', title: 'Semifinales', className: 'round-sf' },
+  { key: 'qf-right', title: 'Cuartos', className: 'round-qf' },
+  { key: 'r16-right', title: 'Octavos', className: 'round-r16' },
+  { key: 'r32-right', title: 'Round de 32', className: 'round-r32' },
+];
+
+function knockoutPlaceholder(n) {
+  return `🏳️ Clasificado ${String(n).padStart(2, '0')}`;
+}
+
+const KNOCKOUT_BASE_MATCHES = [
+  ...Array.from({ length: 16 }, (_, i) => ({
+    id: KNOCKOUT_ID_START + i,
+    round: i < 8 ? 'r32' : 'r32-right',
+    roundOrder: i < 8 ? i : i - 8,
+    local: knockoutPlaceholder(i * 2 + 1),
+    visitante: knockoutPlaceholder(i * 2 + 2),
+    date: '2026-06-28',
+    timeET: String(12 + (i % 4) * 3).padStart(2, '0') + ':00',
+  })),
+  ...Array.from({ length: 8 }, (_, i) => ({
+    id: KNOCKOUT_ID_START + 16 + i,
+    round: i < 4 ? 'r16' : 'r16-right',
+    roundOrder: i < 4 ? i : i - 4,
+    sourceA: KNOCKOUT_ID_START + i * 2,
+    sourceB: KNOCKOUT_ID_START + i * 2 + 1,
+    date: '2026-07-04',
+    timeET: String(12 + (i % 4) * 3).padStart(2, '0') + ':00',
+  })),
+  ...Array.from({ length: 4 }, (_, i) => ({
+    id: KNOCKOUT_ID_START + 24 + i,
+    round: i < 2 ? 'qf' : 'qf-right',
+    roundOrder: i < 2 ? i : i - 2,
+    sourceA: KNOCKOUT_ID_START + 16 + i * 2,
+    sourceB: KNOCKOUT_ID_START + 16 + i * 2 + 1,
+    date: '2026-07-09',
+    timeET: String(15 + (i % 2) * 3).padStart(2, '0') + ':00',
+  })),
+  {
+    id: KNOCKOUT_ID_START + 28,
+    round: 'sf',
+    roundOrder: 0,
+    sourceA: KNOCKOUT_ID_START + 24,
+    sourceB: KNOCKOUT_ID_START + 25,
+    date: '2026-07-14',
+    timeET: '20:00',
+  },
+  {
+    id: KNOCKOUT_ID_START + 29,
+    round: 'sf-right',
+    roundOrder: 0,
+    sourceA: KNOCKOUT_ID_START + 26,
+    sourceB: KNOCKOUT_ID_START + 27,
+    date: '2026-07-15',
+    timeET: '20:00',
+  },
+  {
+    id: KNOCKOUT_ID_START + 30,
+    round: 'final',
+    roundOrder: 0,
+    sourceA: KNOCKOUT_ID_START + 28,
+    sourceB: KNOCKOUT_ID_START + 29,
+    date: '2026-07-19',
+    timeET: '18:00',
+  },
+];
 
 // ============================================================
 // Estados de partido y helpers para estado/marcador
@@ -124,6 +211,18 @@ function isFirebaseConfigured() {
   return CONFIG.firebase.projectId && CONFIG.firebase.projectId !== 'YOUR_PROJECT_ID';
 }
 
+function knockoutEnabled() {
+  return CONFIG.features?.knockoutEnabled === true;
+}
+
+function syncFeatureFlags() {
+  document.querySelectorAll('[data-feature="knockout"]').forEach(el => {
+    const enabled = knockoutEnabled();
+    el.hidden = !enabled;
+    el.classList.toggle('feature-hidden', !enabled);
+  });
+}
+
 async function initFirebase() {
   const appMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-app.js`);
   const fsMod = await import(`https://www.gstatic.com/firebasejs/${FIREBASE_VERSION}/firebase-firestore.js`);
@@ -163,11 +262,14 @@ let state = {
   apiStandingsAt: null,
   activeView: 'info',
   gruposPollTimer: null,
+  knockoutZoom: 0.86,
 };
 
 let matchLockTimer = null;
 let liveMinuteTimer = null;
 let lastRenderedLiveMinuteLabel = '';
+let finalesGesturesReady = false;
+let finalesPinch = null;
 
 // ============================================================
 // Intro de carga
@@ -507,6 +609,8 @@ function matchDatetimeHTML(m) {
   const letter = getMatchGroup(m.local, m.visitante);
   const groupHTML = letter
     ? `<span class="match-group-chip">Grupo ${letter}</span>`
+    : m.roundTitle
+      ? `<span class="match-group-chip">${m.roundTitle}</span>`
     : '';
   const dateHTML = `<span class="match-datetime-text">${formatMatchDate(m.fecha)}</span>`;
   return `<div class="match-datetime">${groupHTML}${dateHTML}</div>`;
@@ -910,9 +1014,10 @@ function logout() {
 function pronosticosFromFirestore(docs, partidos) {
   const pronosticos = {};
   const meta = {};
+  const predictionMatches = [...partidos, ...baseKnockoutMatches()];
 
   for (const p of state.participantes) {
-    pronosticos[p.clave] = partidos.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
+    pronosticos[p.clave] = predictionMatches.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
     meta[p.clave] = { items: {}, compartirPronosticos: true };
   }
 
@@ -928,7 +1033,7 @@ function pronosticosFromFirestore(docs, partidos) {
       compartirPronosticos: data.compartirPronosticos !== false,
     };
 
-    pronosticos[clave] = partidos.map(m => {
+    pronosticos[clave] = predictionMatches.map(m => {
       const item = items[String(m.id)];
       return {
         id: m.id,
@@ -953,7 +1058,8 @@ function renderShareToggle() {
   const text = document.getElementById('shareToggleText');
   if (!wrap || !toggle || !text) return;
 
-  const show = !!state.session && !isAdminSession() && state.activeView === 'quiniela';
+  const show = !!state.session && !isAdminSession()
+    && (state.activeView === 'quiniela' || (knockoutEnabled() && state.activeView === 'finales'));
   wrap.hidden = !show;
   if (!show) return;
 
@@ -1492,7 +1598,7 @@ async function saveSingleMatch(matchId, gl, gv) {
 
   if (saved[String(matchId)]) throw new Error('Ese pronóstico ya está guardado');
 
-  const m = state.partidos.find(x => x.id === matchId);
+  const m = findAnyMatch(matchId);
   if (!m || matchHasScore(m)) throw new Error('Ese partido ya no se puede pronosticar');
   if (matchStarted(m)) throw new Error('Ya cerró el tiempo para pronosticar este partido');
 
@@ -1710,7 +1816,8 @@ function renderPersonTabs() {
       }
       state.selectedPerson = btn.dataset.person;
       renderPersonTabs();
-      renderPersonDetail();
+      if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
+      else renderPersonDetail();
     });
   });
 }
@@ -1756,7 +1863,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
     : state.partidos;
   document.getElementById('personContent').innerHTML = renderMatchesFlat(dayMatches, ctx);
 
-  attachEditingListeners();
+  attachEditingListeners(document.getElementById('personContent'));
   updateJumpButton();
 
   if (resetScroll) {
@@ -1969,11 +2076,431 @@ function renderMatchesFlat(partidos, ctx) {
   return partidos.map(m => buildMatchCard(m, ctx)).join('');
 }
 
+function knockoutRoundTitle(roundKey) {
+  return KNOCKOUT_ROUNDS.find(r => r.key === roundKey)?.title || 'Fase final';
+}
+
+function normalizeKnockoutMatch(base, overrides = {}) {
+  return {
+    docId: `ko-${base.id}`,
+    id: base.id,
+    local: overrides.local || base.local || `🏳️ Ganador ${base.sourceA || ''}`.trim(),
+    visitante: overrides.visitante || base.visitante || `🏳️ Ganador ${base.sourceB || ''}`.trim(),
+    golesLocal: overrides.golesLocal ?? null,
+    golesVisitante: overrides.golesVisitante ?? null,
+    estado: overrides.estado || null,
+    faseEnVivo: null,
+    fecha: etToDate(base.date, base.timeET),
+    round: base.round,
+    roundOrder: base.roundOrder,
+    roundTitle: knockoutRoundTitle(base.round),
+    sourceA: base.sourceA,
+    sourceB: base.sourceB,
+  };
+}
+
+function baseKnockoutMatches() {
+  return KNOCKOUT_BASE_MATCHES.map(m => normalizeKnockoutMatch(m));
+}
+
+function findAnyMatch(matchId) {
+  return state.partidos.find(x => x.id === matchId)
+    || baseKnockoutMatches().find(x => x.id === matchId)
+    || null;
+}
+
+function winnerFromScore(local, visitante, gl, gv) {
+  if (gl === null || gv === null || gl === gv) return null;
+  return gl > gv ? local : visitante;
+}
+
+function knockoutResolvedMatches(predMap = {}) {
+  const resolved = new Map();
+  for (const base of KNOCKOUT_BASE_MATCHES) {
+    const sourceHome = base.sourceA ? resolved.get(base.sourceA) : null;
+    const sourceAway = base.sourceB ? resolved.get(base.sourceB) : null;
+    const pr = predMap[base.id];
+    const local = sourceHome?.winner || base.local || `🏳️ Ganador ${base.sourceA}`;
+    const visitante = sourceAway?.winner || base.visitante || `🏳️ Ganador ${base.sourceB}`;
+    const match = normalizeKnockoutMatch(base, { local, visitante });
+    const predictedWinner = pr
+      ? winnerFromScore(local, visitante, pr.golesLocal, pr.golesVisitante)
+      : null;
+    match.predictedWinner = predictedWinner;
+    match.eliminatedTeam = predictedWinner
+      ? (predictedWinner === local ? visitante : local)
+      : null;
+    resolved.set(base.id, { ...match, winner: predictedWinner || null });
+  }
+  return KNOCKOUT_BASE_MATCHES.map(base => resolved.get(base.id));
+}
+
+function championInfo(knockoutMatches) {
+  const final = knockoutMatches.find(m => m.id === KNOCKOUT_ID_START + 30);
+  const champion = final?.predictedWinner || 'Campeón por definir';
+  const quinielaWinner = state.podio[0]?.nombre || 'Líder por definir';
+  return { champion, quinielaWinner };
+}
+
+function buildChampionHeader(knockoutMatches) {
+  const { champion, quinielaWinner } = championInfo(knockoutMatches);
+  const { flag, name } = splitFlag(champion);
+  return `
+    <div class="finales-winner-card finales-quiniela-card">
+      <div class="finales-winner-label">Ganador de la quiniela</div>
+      <div class="finales-quiniela-name">
+        <span class="finales-crown" aria-hidden="true">♕</span>
+        <span>${quinielaWinner}</span>
+      </div>
+    </div>
+    <div class="finales-champion">
+      <div class="finales-champion-label">Campeón del mundo</div>
+      <div class="finales-champion-team">
+        <span class="finales-champion-flag">${flag || '🏳️'}</span>
+        <span>${name || champion}</span>
+      </div>
+    </div>`;
+}
+
+function buildWorldCupStage(knockoutMatches) {
+  const finalMatch = knockoutMatches.find(m => m.id === KNOCKOUT_ID_START + 30);
+  const hasWinner = !!finalMatch?.predictedWinner;
+  return `
+    <div class="finales-cup-stage">
+      ${buildChampionHeader(knockoutMatches)}
+      <div class="finales-cup-wrap ${hasWinner ? 'has-winner' : ''}" aria-hidden="true">
+        <span class="finales-particle p1"></span>
+        <span class="finales-particle p2"></span>
+        <span class="finales-particle p3"></span>
+        <img class="finales-cup-img" src="assets/world-cup.png" alt="">
+      </div>
+    </div>`;
+}
+
+function knockoutCardWrap(match, ctx) {
+  const eliminated = match.eliminatedTeam ? splitFlag(match.eliminatedTeam) : null;
+  return `
+    <div class="bracket-match" data-match-id="${match.id}" style="--match-top: ${knockoutTop(match)}px;">
+      ${buildMatchCard(match, ctx)}
+      ${eliminated ? `
+        <div class="bracket-eliminated">
+          <span>${eliminated.flag || '🏳️'}</span>
+          <span>${eliminated.name || match.eliminatedTeam}</span>
+        </div>` : ''}
+    </div>`;
+}
+
+function knockoutTop(match) {
+  const round = match.round;
+  const order = match.roundOrder || 0;
+  if (round === 'r32' || round === 'r32-right') return order * KNOCKOUT_SLOT_HEIGHT;
+  if (round === 'r16' || round === 'r16-right') return (order * 2 + 0.5) * KNOCKOUT_SLOT_HEIGHT;
+  if (round === 'qf' || round === 'qf-right') return (order * 4 + 1.5) * KNOCKOUT_SLOT_HEIGHT;
+  if (round === 'sf' || round === 'sf-right') return 3.5 * KNOCKOUT_SLOT_HEIGHT;
+  return 3.5 * KNOCKOUT_SLOT_HEIGHT;
+}
+
+function knockoutColumnIndex(roundKey) {
+  return KNOCKOUT_ROUNDS.findIndex(r => r.key === roundKey);
+}
+
+function knockoutPoint(match, side) {
+  const col = knockoutColumnIndex(match.round);
+  const x = col * (KNOCKOUT_CARD_WIDTH + KNOCKOUT_COL_GAP)
+    + (side === 'right' ? KNOCKOUT_CARD_WIDTH : 0);
+  const y = knockoutTop(match) + KNOCKOUT_CARD_MID;
+  return { x, y };
+}
+
+function connectorPath(fromMatch, toMatch) {
+  const fromLeftSide = knockoutColumnIndex(fromMatch.round) < knockoutColumnIndex(toMatch.round);
+  const start = knockoutPoint(fromMatch, fromLeftSide ? 'right' : 'left');
+  const end = knockoutPoint(toMatch, fromLeftSide ? 'left' : 'right');
+  const middle = fromLeftSide
+    ? start.x + (end.x - start.x) * 0.5
+    : end.x + (start.x - end.x) * 0.5;
+  return `M ${start.x} ${start.y} H ${middle} V ${end.y} H ${end.x}`;
+}
+
+function buildKnockoutConnectors(knockoutMatches) {
+  const byId = new Map(knockoutMatches.map(m => [m.id, m]));
+  const paths = [];
+  for (const match of knockoutMatches) {
+    if (!match.sourceA || !match.sourceB) continue;
+    const sourceA = byId.get(match.sourceA);
+    const sourceB = byId.get(match.sourceB);
+    if (sourceA) paths.push(connectorPath(sourceA, match));
+    if (sourceB) paths.push(connectorPath(sourceB, match));
+  }
+  return `
+    <svg class="bracket-connectors" viewBox="0 0 ${knockoutBoardInnerWidth()} ${knockoutBoardInnerHeight()}" aria-hidden="true">
+      ${paths.map(d => `<path d="${d}"></path>`).join('')}
+    </svg>`;
+}
+
+function knockoutBoardInnerWidth() {
+  return KNOCKOUT_ROUNDS.length * KNOCKOUT_CARD_WIDTH
+    + (KNOCKOUT_ROUNDS.length - 1) * KNOCKOUT_COL_GAP;
+}
+
+function knockoutBoardInnerHeight() {
+  return 8 * KNOCKOUT_SLOT_HEIGHT + KNOCKOUT_CARD_MID;
+}
+
+function knockoutBoardTotalWidth() {
+  return knockoutBoardInnerWidth() + KNOCKOUT_BOARD_PADDING_X * 2;
+}
+
+function knockoutBoardTotalHeight() {
+  return knockoutBoardInnerHeight() + KNOCKOUT_BOARD_PADDING_TOP + 120;
+}
+
+function finalesFitZoom() {
+  const viewport = document.getElementById('finalesViewport');
+  if (!viewport) return 0.5;
+  const widthZoom = viewport.clientWidth / knockoutBoardTotalWidth();
+  const heightZoom = viewport.clientHeight / knockoutBoardTotalHeight();
+  return Math.min(KNOCKOUT_ZOOM_MAX, Math.min(widthZoom, heightZoom));
+}
+
+function finalesMinZoom() {
+  return Math.max(0.08, finalesFitZoom());
+}
+
+function clampFinalesZoom(value) {
+  return Math.max(finalesMinZoom(), Math.min(KNOCKOUT_ZOOM_MAX, value));
+}
+
+function applyFinalesZoom() {
+  const board = document.getElementById('finalesBoard');
+  if (!board) return;
+  const totalWidth = knockoutBoardTotalWidth();
+  const totalHeight = knockoutBoardTotalHeight();
+  const zoom = state.knockoutZoom;
+  board.style.setProperty('--finales-zoom', zoom);
+  board.style.setProperty('--bracket-scaled-width', `${Math.ceil(totalWidth * zoom)}px`);
+  board.style.setProperty('--bracket-scaled-height', `${Math.ceil(totalHeight * zoom)}px`);
+  board.style.setProperty('--bracket-offset-x', `${KNOCKOUT_BOARD_PADDING_X * zoom}px`);
+  board.style.setProperty('--bracket-offset-y', `${KNOCKOUT_BOARD_PADDING_TOP * zoom}px`);
+}
+
+function setFinalesZoom(nextZoom, origin = null) {
+  const viewport = document.getElementById('finalesViewport');
+  const previousZoom = state.knockoutZoom;
+  const next = Number(clampFinalesZoom(nextZoom).toFixed(4));
+  if (!viewport || Math.abs(next - previousZoom) < 0.001) return;
+
+  const rect = viewport.getBoundingClientRect();
+  const originX = origin ? origin.clientX - rect.left : viewport.clientWidth / 2;
+  const originY = origin ? origin.clientY - rect.top : viewport.clientHeight / 2;
+  const sceneX = (viewport.scrollLeft + originX) / previousZoom;
+  const sceneY = (viewport.scrollTop + originY) / previousZoom;
+
+  state.knockoutZoom = next;
+  applyFinalesZoom();
+
+  viewport.scrollLeft = sceneX * next - originX;
+  viewport.scrollTop = sceneY * next - originY;
+}
+
+function renderFinales() {
+  const board = document.getElementById('finalesBoard');
+  if (!board) return;
+  const person = state.selectedPerson || state.session?.clave;
+  const isOwn = !!(state.session && state.session.clave === person);
+  const meta = state.pronosticosMeta[person] || { items: {} };
+  const savedItems = meta.items || {};
+  const sharesPredictions = meta.compartirPronosticos !== false;
+  const preds = state.pronosticos[person] || [];
+  const predMap = {};
+  preds.forEach(pr => { predMap[pr.id] = pr; });
+
+  const knockoutMatches = knockoutResolvedMatches(predMap);
+  const ctx = { isOwn, savedItems, predMap, sharesPredictions };
+  const columns = KNOCKOUT_ROUNDS.map(round => {
+    const matches = knockoutMatches
+      .filter(m => m.round === round.key)
+      .sort((a, b) => a.roundOrder - b.roundOrder);
+    const cup = round.key === 'final' ? buildWorldCupStage(knockoutMatches) : '';
+    return `
+      <section class="bracket-round ${round.className}" data-round="${round.key}">
+        <h3 class="bracket-round-title">${round.title}</h3>
+        <div class="bracket-round-matches">
+          ${cup}
+          ${matches.map(m => knockoutCardWrap(m, ctx)).join('')}
+        </div>
+      </section>`;
+  }).join('');
+
+  state.knockoutZoom = clampFinalesZoom(state.knockoutZoom);
+  board.style.setProperty('--finales-zoom', state.knockoutZoom);
+  board.style.setProperty('--bracket-card-width', `${KNOCKOUT_CARD_WIDTH}px`);
+  board.style.setProperty('--bracket-col-gap', `${KNOCKOUT_COL_GAP}px`);
+  board.style.setProperty('--bracket-inner-width', `${knockoutBoardInnerWidth()}px`);
+  board.style.setProperty('--bracket-inner-height', `${knockoutBoardInnerHeight()}px`);
+  board.style.setProperty('--bracket-pad-x', `${KNOCKOUT_BOARD_PADDING_X}px`);
+  board.style.setProperty('--bracket-pad-top', `${KNOCKOUT_BOARD_PADDING_TOP}px`);
+  board.innerHTML = `
+    <div class="bracket-canvas">
+      ${buildKnockoutConnectors(knockoutMatches)}
+      <div class="bracket-grid">${columns}</div>
+    </div>`;
+  applyFinalesZoom();
+  initFinalesGestures();
+  attachEditingListeners(document.getElementById('finalesBoard'));
+}
+
+function focusFinalesMatch(matchId) {
+  const viewport = document.getElementById('finalesViewport');
+  const match = baseKnockoutMatches().find(m => m.id === matchId);
+  if (!viewport || !match) return;
+
+  state.knockoutZoom = clampFinalesZoom(KNOCKOUT_FOCUS_ZOOM);
+  applyFinalesZoom();
+
+  const col = knockoutColumnIndex(match.round);
+  const cardCenterX = KNOCKOUT_BOARD_PADDING_X
+    + col * (KNOCKOUT_CARD_WIDTH + KNOCKOUT_COL_GAP)
+    + KNOCKOUT_CARD_WIDTH / 2;
+  const cardCenterY = KNOCKOUT_BOARD_PADDING_TOP + knockoutTop(match) + KNOCKOUT_CARD_MID;
+
+  viewport.scrollTo({
+    left: Math.max(0, cardCenterX * state.knockoutZoom - viewport.clientWidth / 2),
+    top: Math.max(0, cardCenterY * state.knockoutZoom - viewport.clientHeight / 2),
+    behavior: 'smooth',
+  });
+}
+
+function getFinalesJumpTargetMatch() {
+  const ordered = baseKnockoutMatches().sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+  const liveTarget = ordered.find(m => !matchFinalized(m) && (matchLive(m) || matchHalftime(m)));
+  if (liveTarget) return liveTarget;
+  return ordered.find(m => !matchFinalized(m) && !matchHasScore(m))
+    || ordered.find(m => !matchFinalized(m))
+    || null;
+}
+
+function focusNextFinalesMatch() {
+  const target = getFinalesJumpTargetMatch();
+  if (!target) return;
+  focusFinalesMatch(target.id);
+}
+
+function initFinalesGestures() {
+  if (finalesGesturesReady) return;
+  const viewport = document.getElementById('finalesViewport');
+  if (!viewport) return;
+  finalesGesturesReady = true;
+
+  const pointers = new Map();
+  let dragPointerId = null;
+  let lastDragPoint = null;
+  let didDrag = false;
+
+  const pointerDistance = () => {
+    const pts = [...pointers.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY);
+  };
+
+  const pointerCenter = () => {
+    const pts = [...pointers.values()];
+    if (pts.length < 2) return null;
+    return {
+      clientX: (pts[0].clientX + pts[1].clientX) / 2,
+      clientY: (pts[0].clientY + pts[1].clientY) / 2,
+    };
+  };
+
+  viewport.addEventListener('wheel', e => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * KNOCKOUT_WHEEL_ZOOM_SPEED);
+    setFinalesZoom(state.knockoutZoom * factor, { clientX: e.clientX, clientY: e.clientY });
+  }, { passive: false });
+
+  viewport.addEventListener('pointerdown', e => {
+    if (e.target.closest('input, button, textarea, select')) return;
+    pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+    viewport.setPointerCapture?.(e.pointerId);
+    didDrag = false;
+
+    if (pointers.size === 1) {
+      dragPointerId = e.pointerId;
+      lastDragPoint = { clientX: e.clientX, clientY: e.clientY };
+      viewport.classList.add('is-dragging');
+    } else if (pointers.size === 2) {
+      finalesPinch = {
+        distance: pointerDistance(),
+        zoom: state.knockoutZoom,
+      };
+      viewport.classList.add('is-dragging');
+    }
+  });
+
+  viewport.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+    if (pointers.size >= 2 && finalesPinch) {
+      e.preventDefault();
+      const distance = pointerDistance();
+      const center = pointerCenter();
+      if (distance > 0 && center) {
+        const ratio = distance / finalesPinch.distance;
+        setFinalesZoom(finalesPinch.zoom * Math.pow(ratio, KNOCKOUT_PINCH_SENSITIVITY), center);
+        didDrag = true;
+      }
+      return;
+    }
+
+    if (dragPointerId === e.pointerId && lastDragPoint) {
+      const dx = e.clientX - lastDragPoint.clientX;
+      const dy = e.clientY - lastDragPoint.clientY;
+      if (Math.abs(dx) + Math.abs(dy) > 2) didDrag = true;
+      viewport.scrollLeft -= dx;
+      viewport.scrollTop -= dy;
+      lastDragPoint = { clientX: e.clientX, clientY: e.clientY };
+    }
+  }, { passive: false });
+
+  const endPointer = e => {
+    pointers.delete(e.pointerId);
+    viewport.releasePointerCapture?.(e.pointerId);
+    finalesPinch = null;
+    if (pointers.size === 0) {
+      dragPointerId = null;
+      lastDragPoint = null;
+      viewport.classList.remove('is-dragging');
+      return;
+    }
+    const remaining = [...pointers.entries()][0];
+    dragPointerId = remaining[0];
+    lastDragPoint = remaining[1];
+  };
+
+  viewport.addEventListener('pointerup', endPointer);
+  viewport.addEventListener('pointercancel', endPointer);
+  viewport.addEventListener('click', e => {
+    if (!didDrag) return;
+    e.preventDefault();
+    e.stopPropagation();
+    didDrag = false;
+  }, true);
+
+  window.addEventListener('resize', () => {
+    if (state.activeView !== 'finales') return;
+    const next = clampFinalesZoom(state.knockoutZoom);
+    if (next !== state.knockoutZoom) state.knockoutZoom = next;
+    applyFinalesZoom();
+  });
+}
+
 // ============================================================
 // Edición por partido (uno a la vez)
 // ============================================================
-function attachEditingListeners() {
-  document.querySelectorAll('.editable-card').forEach(card => {
+function attachEditingListeners(root = document) {
+  root.querySelectorAll('.editable-card').forEach(card => {
     const id = Number(card.dataset.matchId);
     card.querySelectorAll('input').forEach(inp => {
       inp.addEventListener('focus', () => enterEditMode(id));
@@ -2030,7 +2557,7 @@ function openConfirm(matchId) {
     return;
   }
 
-  const m = state.partidos.find(x => x.id === matchId);
+  const m = findAnyMatch(matchId);
   state.pendingSave = { matchId, gl, gv };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
@@ -2062,7 +2589,8 @@ async function handleModalConfirm() {
     state.editingMatchId = null;
     state.pendingSave = null;
     closeModal();
-    renderPersonDetail();
+    if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
+    else renderPersonDetail();
   } catch (err) {
     alert(err.message);
   } finally {
@@ -2121,6 +2649,7 @@ function renderAll() {
   renderPersonTabs();
   if (state.editingMatchId === null) renderPersonDetail();
   if (state.activeView === 'grupos') renderGrupos();
+  if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
   updateHeaderSession();
   renderShareToggle();
 }
@@ -2264,6 +2793,7 @@ function renderGrupos() {
 // ============================================================
 function switchView(viewKey) {
   const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo', grupos: 'viewGrupos' };
+  if (knockoutEnabled()) views.finales = 'viewFinales';
   const target = views[viewKey] ? viewKey : 'podio';
   state.activeView = target;
   document.body.classList.toggle('podio-mode', target === 'podio');
@@ -2275,6 +2805,9 @@ function switchView(viewKey) {
     renderPersonDetail();
     stopGruposPolling();
     syncLiveScoresFromClient({ force: true, silent: true }).catch(handleClientLiveSyncError);
+  } else if (knockoutEnabled() && target === 'finales') {
+    renderFinales();
+    stopGruposPolling();
   } else if (target === 'grupos') {
     renderGrupos();
     startGruposPolling();
@@ -2418,6 +2951,7 @@ async function bootstrap() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initIntroVideo();
+  syncFeatureFlags();
   initNavigation();
   initPodioMusic();
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
@@ -2425,6 +2959,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sharePredictionsToggle').addEventListener('change', handleShareToggleChange);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
   document.getElementById('btnLiveSyncNow')?.addEventListener('click', handleLiveSyncNow);
+  document.getElementById('btnFinalesNext')?.addEventListener('click', focusNextFinalesMatch);
 
   let jumpTick = false;
   const onScrollOrResize = () => {

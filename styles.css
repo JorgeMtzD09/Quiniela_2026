@@ -1228,6 +1228,357 @@ body.intro-playing {
   opacity: 0.75;
 }
 
+/* Fase final */
+#viewFinales.active {
+  display: block;
+  margin: -12px -16px calc(-1 * (var(--nav-height) + var(--safe-bottom) + 8px));
+}
+
+.finales-shell {
+  min-height: calc(100dvh - var(--header-stack-height) - 29px);
+  padding-bottom: calc(var(--nav-height) + var(--safe-bottom));
+  background:
+    radial-gradient(circle at 50% 28%, rgba(22, 163, 74, 0.2), transparent 26%),
+    radial-gradient(circle at 16% 18%, rgba(30, 111, 217, 0.22), transparent 24%),
+    linear-gradient(145deg, #070911 0%, #10131d 42%, #05060b 100%);
+  color: #fff;
+  overflow: hidden;
+}
+
+.finales-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(7, 9, 17, 0.82);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.finales-title {
+  font-size: 1.02rem;
+  line-height: 1.05;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.finales-subtitle {
+  margin-top: 2px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.finales-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.finales-next-btn {
+  min-height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.finales-next-btn {
+  border-color: rgba(34, 197, 94, 0.55);
+  border-radius: 999px;
+  padding: 0 12px;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.28), rgba(20, 184, 166, 0.18));
+  font-size: 0.76rem;
+}
+
+.finales-viewport {
+  height: calc(100dvh - var(--header-stack-height) - 29px - 61px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: none;
+  cursor: grab;
+}
+
+.finales-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.finales-board {
+  --finales-zoom: 0.78;
+  --bracket-card-width: 330px;
+  --bracket-col-gap: 96px;
+  --bracket-inner-width: 3738px;
+  --bracket-inner-height: 2458px;
+  --bracket-pad-x: 36px;
+  --bracket-pad-top: 82px;
+  --bracket-offset-x: 28px;
+  --bracket-offset-y: 70px;
+  --bracket-scaled-width: 3280px;
+  --bracket-scaled-height: 2300px;
+  position: relative;
+  width: var(--bracket-scaled-width);
+  height: var(--bracket-scaled-height);
+  margin: 0 auto;
+}
+
+.bracket-canvas {
+  position: absolute;
+  left: var(--bracket-offset-x);
+  top: var(--bracket-offset-y);
+  width: var(--bracket-inner-width);
+  height: var(--bracket-inner-height);
+  transform: scale(var(--finales-zoom));
+  transform-origin: top left;
+}
+
+.bracket-grid {
+  display: grid;
+  grid-template-columns: repeat(9, var(--bracket-card-width));
+  gap: var(--bracket-col-gap);
+  align-items: stretch;
+  position: relative;
+  z-index: 2;
+  width: var(--bracket-inner-width);
+  height: var(--bracket-inner-height);
+}
+
+.bracket-round {
+  position: relative;
+  min-height: var(--bracket-inner-height);
+  width: var(--bracket-card-width);
+}
+
+.bracket-round-title {
+  position: absolute;
+  top: -50px;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.bracket-round-matches {
+  position: relative;
+  height: var(--bracket-inner-height);
+}
+
+.bracket-match {
+  position: absolute;
+  top: var(--match-top);
+  left: 0;
+  width: var(--bracket-card-width);
+}
+
+.bracket-match .match-card {
+  position: relative;
+  z-index: 1;
+  border-radius: 10px;
+}
+
+.bracket-match .team-flag {
+  font-size: 2.15rem;
+}
+
+.bracket-match .team-name {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.bracket-match::after,
+.bracket-match::before {
+  display: none;
+}
+
+.bracket-connectors {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: var(--bracket-inner-width);
+  height: var(--bracket-inner-height);
+  overflow: visible;
+}
+
+.bracket-connectors path {
+  fill: none;
+  stroke: #22c55e;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 7px rgba(34, 197, 94, 0.92));
+  opacity: 0.92;
+}
+
+.bracket-eliminated {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -18px;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.28);
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-decoration: line-through;
+  filter: grayscale(1);
+}
+
+.finales-cup-stage {
+  position: absolute;
+  top: 500px;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.finales-winner-card,
+.finales-champion {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(34, 197, 94, 0.36);
+  border-radius: 10px;
+  background: rgba(5, 6, 11, 0.58);
+  box-shadow: 0 0 24px rgba(34, 197, 94, 0.12);
+  text-align: center;
+}
+
+.finales-quiniela-card {
+  border-color: rgba(245, 197, 66, 0.5);
+  background: linear-gradient(180deg, rgba(245, 197, 66, 0.14), rgba(5, 6, 11, 0.62));
+  box-shadow: 0 0 28px rgba(245, 197, 66, 0.16);
+}
+
+.finales-winner-label,
+.finales-champion-label {
+  color: #7dd3fc;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.finales-winner-label {
+  color: #fde68a;
+}
+
+.finales-quiniela-name,
+.finales-champion-team {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 0.98rem;
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.finales-quiniela-name {
+  color: #fff;
+  font-size: 1.04rem;
+}
+
+.finales-champion-flag {
+  font-size: 1.3rem;
+}
+
+.finales-crown {
+  color: var(--gold);
+  font-size: 1.3rem;
+  filter: drop-shadow(0 0 8px rgba(245, 197, 66, 0.48));
+}
+
+.finales-cup-wrap {
+  position: relative;
+  width: 210px;
+  height: 310px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at center, rgba(245, 197, 66, 0.24), transparent 56%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+  overflow: hidden;
+}
+
+.finales-cup-img {
+  display: block;
+  width: 178px;
+  height: 286px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(245, 197, 66, 0.72));
+  animation: cup-horizontal-spin 4s ease-in-out infinite;
+}
+
+.finales-particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #facc15;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.9);
+  opacity: 0.8;
+}
+
+.finales-particle.p1 { animation: cup-spark-1 3.2s linear infinite; }
+.finales-particle.p2 { animation: cup-spark-2 3.8s linear infinite; }
+.finales-particle.p3 { animation: cup-spark-3 4.2s linear infinite; }
+
+@keyframes cup-horizontal-spin {
+  0%, 100% { transform: rotateY(0deg) scale(1); }
+  50% { transform: rotateY(180deg) scale(1.06); }
+}
+
+@keyframes cup-spark-1 {
+  from { transform: translate(-62px, 42px) rotate(0deg); }
+  to { transform: translate(58px, -44px) rotate(360deg); }
+}
+
+@keyframes cup-spark-2 {
+  from { transform: translate(58px, 52px) rotate(0deg); }
+  to { transform: translate(-56px, -30px) rotate(-360deg); }
+}
+
+@keyframes cup-spark-3 {
+  from { transform: translate(-20px, -60px) rotate(0deg); }
+  to { transform: translate(28px, 58px) rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finales-cup-img,
+  .finales-particle {
+    animation: none;
+  }
+}
+
 /* Bottom nav */
 .bottom-nav {
   position: fixed;
@@ -1260,6 +1611,14 @@ body.intro-playing {
   transition: color 0.2s;
   -webkit-tap-highlight-color: transparent;
   padding: 4px 0;
+}
+
+.nav-btn[hidden] {
+  display: none;
+}
+
+.feature-hidden {
+  display: none;
 }
 
 .nav-btn.active {
