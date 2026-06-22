@@ -147,6 +147,14 @@ function buildOverlay(leaderboard) {
 let activeScene = null;
 let lastLeaderboardSig = '';
 
+function loadingHTML() {
+  return `
+    <div class="podio-loading" role="status" aria-live="polite">
+      <img class="podio-loading-logo" src="assets/loading-logo.gif" alt="">
+      <span class="podio-loading-text">Cargando...</span>
+    </div>`;
+}
+
 export function mapAppPodioToLeaderboard(podio) {
   return podio.map(p => ({
     id: p.clave,
@@ -166,7 +174,7 @@ export async function renderPodiumScreen(container, leaderboard, options = {}) {
     lastLeaderboardSig = '';
     activeScene?.dispose();
     activeScene = null;
-    container.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando podio...</div>';
+    container.innerHTML = loadingHTML();
     container.classList.remove('podio-3d-mode', 'podio-has-webgl');
     return;
   }
@@ -184,6 +192,7 @@ export async function renderPodiumScreen(container, leaderboard, options = {}) {
     <div class="podio-stage" role="img" aria-label="Tabla del podio de la quiniela">
       <canvas class="podio-webgl" aria-hidden="true"></canvas>
       ${buildOverlay(leaderboard)}
+      ${loadingHTML()}
     </div>`;
   container.classList.add('podio-3d-mode');
   container.classList.remove('podio-has-webgl');
@@ -193,8 +202,10 @@ export async function renderPodiumScreen(container, leaderboard, options = {}) {
     const canvas = container.querySelector('.podio-webgl');
     activeScene = new PodioScene(canvas, leaderboard);
     container.classList.add('podio-has-webgl');
+    container.querySelector('.podio-loading')?.remove();
   } catch (err) {
     console.warn('Escena 3D no disponible, usando fallback HTML:', err);
+    container.querySelector('.podio-loading')?.remove();
   }
 }
 

@@ -32,6 +32,40 @@
     #e9eef5;
 }
 
+.podio-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: var(--podio-view-height);
+  padding: 24px;
+  color: #111827;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.92) 62%, rgba(201, 211, 224, 0.96) 100%);
+}
+
+.podio-list > .podio-loading {
+  position: relative;
+  flex: 1;
+}
+
+.podio-loading-logo {
+  display: block;
+  width: min(180px, 48vw);
+  aspect-ratio: 1;
+  object-fit: contain;
+}
+
+.podio-loading-text {
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
 .podio-webgl {
   position: absolute;
   inset: 0;
