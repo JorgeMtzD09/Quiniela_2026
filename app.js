@@ -788,7 +788,7 @@ function startLiveMinuteTimer() {
     const adminActive = document.getElementById('viewAdmin')?.classList.contains('active');
     const hasLive = state.partidos.some(m => matchLive(m));
     const hasRelevant = state.partidos.some(matchRelevantForClientSync);
-    if (hasRelevant) {
+    if (hasRelevant && !adminActive) {
       syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
     }
     if (!hasLive) return;
@@ -1112,7 +1112,6 @@ function subscribeAdmin() {
       state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
       if (state.adminEditingId === null) renderAdmin();
       setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-      syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
     }, err => {
       console.error(err);
       setStatus('Error al leer partidos', 'error');
@@ -1460,6 +1459,7 @@ function renderAdmin() {
   }
   el.innerHTML = renderAdminMatchesByDay(state.partidos);
   attachAdminListeners();
+  updateJumpButton();
 }
 
 function handleLiveSyncNow() {
@@ -1766,21 +1766,39 @@ function renderPersonDetail({ resetScroll = false } = {}) {
   }
 }
 
-// El primer partido no finalizado: puede estar pendiente, jugando o en medio tiempo.
-// Si ya tiene marcador pero sigue en estado "jugando", debe seguir siendo el partido actual.
+function getJumpTargetMatch() {
+  const liveTarget = state.partidos.find(m => !matchFinalized(m) && (matchLive(m) || matchHalftime(m)));
+  if (liveTarget) return liveTarget;
+  const pendingTarget = state.partidos.find(m => !matchFinalized(m) && !matchHasScore(m));
+  if (pendingTarget) return pendingTarget;
+  return state.partidos.find(m => !matchFinalized(m)) || null;
+}
+
+// El primer partido no finalizado y sin resultado: puede estar pendiente, jugando o en medio tiempo.
 function getCurrentMatchId() {
-  const target = state.partidos.find(m => !matchFinalized(m));
+  const target = getJumpTargetMatch();
   return target ? target.id : null;
 }
 
-// Devuelve la tarjeta del primer partido pendiente, si existe y la vista
-// Quiniela está activa.
+function activeJumpView() {
+  if (document.getElementById('viewAdmin')?.classList.contains('active')) return 'admin';
+  if (document.getElementById('viewQuiniela')?.classList.contains('active')) return 'quiniela';
+  return null;
+}
+
+// Devuelve la tarjeta del primer partido relevante para la vista activa.
 function getCurrentMatchCard() {
-  const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
-  if (!quinielaActive) return null;
   const id = getCurrentMatchId();
   if (id === null) return null;
-  return document.querySelector(`#personContent .match-card[data-match-id="${id}"]`);
+  const view = activeJumpView();
+  if (view === 'admin') {
+    const match = state.partidos.find(m => m.id === id);
+    return match ? document.querySelector(`#adminContent .match-card[data-doc-id="${match.docId}"]`) : null;
+  }
+  if (view === 'quiniela') {
+    return document.querySelector(`#personContent .match-card[data-match-id="${id}"]`);
+  }
+  return null;
 }
 
 function ensureDayForCurrentMatch() {
@@ -1803,11 +1821,12 @@ function updateJumpButton() {
   const btn = document.getElementById('btnJumpCurrent');
   if (!btn) return;
 
-  const quinielaActive = document.getElementById('viewQuiniela')?.classList.contains('active');
-  if (!quinielaActive) {
+  const view = activeJumpView();
+  if (!view) {
     btn.hidden = true;
     return;
   }
+  btn.classList.toggle('admin-position', view === 'admin');
 
   const id = getCurrentMatchId();
   if (id === null) { btn.hidden = true; return; }
@@ -1816,10 +1835,12 @@ function updateJumpButton() {
   if (!card) {
     btn.hidden = false;
     btn.classList.remove('points-up');
+    const label = btn.querySelector('span');
+    if (label) label.textContent = view === 'admin' ? 'Partido actual' : 'Próximo partido';
     return;
   }
 
-  const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
+  const sticky = view === 'quiniela' ? document.querySelector('#viewQuiniela .quiniela-sticky') : null;
   const nav = document.getElementById('bottomNav');
   const regionTop = sticky ? sticky.getBoundingClientRect().bottom : 0;
   const navTop = nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : window.innerHeight;
@@ -1831,6 +1852,8 @@ function updateJumpButton() {
   if (visible) { btn.hidden = true; return; }
 
   btn.hidden = false;
+  const label = btn.querySelector('span');
+  if (label) label.textContent = view === 'admin' ? 'Partido actual' : 'Próximo partido';
   // Si la tarjeta está por debajo de la zona visible, la flecha apunta abajo;
   // si está por arriba, apunta arriba.
   const pointsUp = rect.top < regionTop;
@@ -1839,12 +1862,13 @@ function updateJumpButton() {
 
 // Hace scroll suave hasta el primer partido pendiente, compensando la barra fija.
 function scrollToCurrentMatch() {
-  const dayChanged = ensureDayForCurrentMatch();
+  const view = activeJumpView();
+  const dayChanged = view === 'quiniela' ? ensureDayForCurrentMatch() : false;
   const scrollToCard = () => {
     const card = getCurrentMatchCard();
     if (!card) return;
 
-    const sticky = document.querySelector('#viewQuiniela .quiniela-sticky');
+    const sticky = view === 'quiniela' ? document.querySelector('#viewQuiniela .quiniela-sticky') : null;
     const offset = sticky ? sticky.getBoundingClientRect().bottom : 0;
     const delta = card.getBoundingClientRect().top - offset - 8;
 

@@ -599,6 +599,10 @@ body.intro-playing {
   gap: 6px;
 }
 
+#viewQuiniela #personContent {
+  padding-bottom: calc(72px + var(--safe-bottom));
+}
+
 .day-group {
   margin-bottom: 22px;
 }
@@ -1750,6 +1754,10 @@ body.intro-playing {
 
 .btn-jump-current:active {
   transform: scale(0.96);
+}
+
+.btn-jump-current.admin-position {
+  bottom: calc(24px + var(--safe-bottom));
 }
 
 /* Toast de feedback */
