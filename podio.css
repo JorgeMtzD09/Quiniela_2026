@@ -43,9 +43,8 @@
   gap: 12px;
   min-height: var(--podio-view-height);
   padding: 24px;
-  color: #111827;
-  background:
-    radial-gradient(circle at 50% 42%, rgba(248, 250, 252, 0.96), rgba(226, 232, 240, 0.92) 62%, rgba(201, 211, 224, 0.96) 100%);
+  color: #ffffff;
+  background: #000000;
 }
 
 .podio-list > .podio-loading {
@@ -55,7 +54,7 @@
 
 .podio-loading-logo {
   display: block;
-  width: min(180px, 48vw);
+  width: min(280px, 68vw);
   aspect-ratio: 1;
   object-fit: contain;
 }
@@ -64,6 +63,7 @@
   font-size: 0.95rem;
   font-weight: 900;
   letter-spacing: 0;
+  color: #ffffff;
 }
 
 .podio-webgl {
