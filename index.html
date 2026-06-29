@@ -47,11 +47,7 @@
       <span class="status-dot"></span>
       <span id="statusText">Cargando...</span>
     </span>
-    <label class="share-toggle" id="shareToggleWrap" hidden>
-      <span class="share-toggle-text" id="shareToggleText">Compartir pronósticos</span>
-      <input type="checkbox" id="sharePredictionsToggle">
-      <span class="share-toggle-ui" aria-hidden="true"></span>
-    </label>
+    <button class="status-settings-btn" id="btnQuinielaSettings" type="button" hidden>Ajustes</button>
     <button class="status-audio-pause" id="podioAudioPause" type="button" hidden>Pausar audio</button>
   </div>
 
@@ -156,10 +152,6 @@
     <section class="view" id="viewFinales">
       <div class="finales-shell">
         <div class="finales-toolbar">
-          <div class="finales-title-wrap">
-            <h2 class="finales-title">Fase Final</h2>
-            <p class="finales-subtitle">Round de 32 a la final</p>
-          </div>
           <div class="finales-controls">
             <button class="finales-nav-btn" id="btnFinalesPrev" type="button" aria-label="Partido anterior" title="Partido anterior">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
@@ -173,10 +165,6 @@
               </svg>
             </button>
           </div>
-        </div>
-        <div class="finales-mode-toggle" role="group" aria-label="Modo de quiniela">
-          <button class="finales-mode-btn active" id="btnFinalesBracketMode" type="button" data-finales-mode="bracket">Llave</button>
-          <button class="finales-mode-btn" id="btnFinalesListMode" type="button" data-finales-mode="list">Lista</button>
         </div>
         <div class="person-tabs finales-person-tabs" id="finalesPersonTabs"></div>
         <div class="finales-viewport" id="finalesViewport">
@@ -231,9 +219,41 @@
         <path d="M6 15h5a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2h3"/>
         <path d="M9 21h6"/>
       </svg>
-      <span>Quiniela</span>
+      <span class="nav-label-two-line">Quiniela<br>Fase Final</span>
     </button>
   </nav>
+
+  <div class="modal-overlay" id="settingsModal" hidden>
+    <div class="modal settings-modal">
+      <h3 class="modal-title">Ajustes de quiniela</h3>
+      <div class="settings-list">
+        <div class="settings-row">
+          <div>
+            <div class="settings-title">Vista</div>
+            <div class="settings-hint">Cambia entre llave completa y partidos de hoy.</div>
+          </div>
+          <div class="finales-mode-toggle settings-mode-toggle" role="group" aria-label="Modo de quiniela">
+            <button class="finales-mode-btn active" id="btnFinalesBracketMode" type="button" data-finales-mode="bracket">Llave</button>
+            <button class="finales-mode-btn" id="btnFinalesListMode" type="button" data-finales-mode="list">Lista</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-title">Compartir pronósticos</div>
+            <div class="settings-hint">Permite que los demás vean tus marcadores antes del partido.</div>
+          </div>
+          <label class="share-toggle settings-share-toggle" id="shareToggleWrap" hidden>
+            <span class="share-toggle-text" id="shareToggleText">Compartir pronósticos</span>
+            <input type="checkbox" id="sharePredictionsToggle">
+            <span class="share-toggle-ui" aria-hidden="true"></span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-primary" id="settingsClose">Listo</button>
+      </div>
+    </div>
+  </div>
 
   <div class="modal-overlay" id="confirmModal" hidden>
     <div class="modal">

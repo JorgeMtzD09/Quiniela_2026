@@ -1117,10 +1117,12 @@ function renderShareToggle() {
   const wrap = document.getElementById('shareToggleWrap');
   const toggle = document.getElementById('sharePredictionsToggle');
   const text = document.getElementById('shareToggleText');
-  if (!wrap || !toggle || !text) return;
+  const settingsBtn = document.getElementById('btnQuinielaSettings');
 
   const show = !!state.session && !isAdminSession()
     && knockoutEnabled() && state.activeView === 'finales';
+  if (settingsBtn) settingsBtn.hidden = !show;
+  if (!wrap || !toggle || !text) return;
   wrap.hidden = !show;
   if (!show) return;
 
@@ -1129,6 +1131,17 @@ function renderShareToggle() {
   toggle.disabled = state.sharePreferenceSaving;
   text.textContent = 'Compartir pronósticos';
   wrap.classList.toggle('is-saving', state.sharePreferenceSaving);
+}
+
+function openSettingsModal() {
+  if (!(state.session && !isAdminSession() && state.activeView === 'finales')) return;
+  renderShareToggle();
+  document.getElementById('settingsModal').hidden = false;
+}
+
+function closeSettingsModal() {
+  const modal = document.getElementById('settingsModal');
+  if (modal) modal.hidden = true;
 }
 
 async function saveSharePreference(compartirPronosticos) {
@@ -3395,6 +3408,8 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnRefresh').addEventListener('click', reconnect);
   document.getElementById('btnLogout').addEventListener('click', logout);
   document.getElementById('sharePredictionsToggle').addEventListener('change', handleShareToggleChange);
+  document.getElementById('btnQuinielaSettings')?.addEventListener('click', openSettingsModal);
+  document.getElementById('settingsClose')?.addEventListener('click', closeSettingsModal);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
   document.getElementById('btnLiveSyncNow')?.addEventListener('click', handleLiveSyncNow);
   document.getElementById('btnFinalesPrev')?.addEventListener('click', () => focusFinalesRelative(-1));
@@ -3416,6 +3431,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modalCancel').addEventListener('click', handleModalCancel);
   document.getElementById('confirmModal').addEventListener('click', e => {
     if (e.target.id === 'confirmModal') handleModalCancel();
+  });
+  document.getElementById('settingsModal')?.addEventListener('click', e => {
+    if (e.target.id === 'settingsModal') closeSettingsModal();
   });
   bootstrap();
 });
