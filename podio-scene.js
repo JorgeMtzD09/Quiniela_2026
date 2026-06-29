@@ -7,7 +7,7 @@ const PODIUM = {
   3: { x: 1.5, z: -1, w: 0.82, h: 0.56, d: 0.64, color: 0xb76328, dark: 0x713211 },
 };
 
-const FIELD = { width: 3.55, depth: 2.24, x: 0, z: 2.45 };
+const FIELD = { width: 3.55, depth: 2.24, x: 0, z: 2.05 };
 
 const METAL_PALETTES = {
   1: ['#BF953F', '#FCF6BA', '#B38728', '#FBF5B7', '#AA771C'],
@@ -245,13 +245,17 @@ function createSpotBeamTexture() {
 
 function createGlowTexture() {
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = 256;
+  canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  const glow = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  glow.addColorStop(0, 'rgba(255, 244, 203, 0.92)');
-  glow.addColorStop(0.24, 'rgba(122, 236, 255, 0.58)');
-  glow.addColorStop(0.6, 'rgba(37, 155, 212, 0.16)');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, 122);
+  glow.addColorStop(0, 'rgba(255, 247, 205, 0.95)');
+  glow.addColorStop(0.2, 'rgba(122, 236, 255, 0.58)');
+  glow.addColorStop(0.48, 'rgba(37, 155, 212, 0.18)');
+  glow.addColorStop(0.74, 'rgba(37, 155, 212, 0.05)');
   glow.addColorStop(1, 'rgba(37, 155, 212, 0)');
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -437,7 +441,7 @@ function podiumBallPosition(rank, index = 0, total = 1) {
   const offsets = ballClusterOffset(index, total, true);
   return {
     x: cfg.x + offsets.x,
-    y: cfg.h + 0.28,
+    y: cfg.h - 0.42,
     z: cfg.z - 0.03 + offsets.z,
   };
 }
@@ -715,7 +719,7 @@ export class PodioScene {
   }
 
   createFieldRankPositions() {
-    const groups = [...groupByRank(this.leaderboard).entries()].filter(([rank]) => rank > 3);
+    const groups = [...groupByRank(this.leaderboard).entries()].filter(([rank]) => rank > 1);
     const positions = new Map();
     const placed = [];
 
@@ -814,21 +818,21 @@ export class PodioScene {
   registerLabels() {
     const groups = groupByRank(this.leaderboard);
 
-    [1, 2, 3].forEach(rank => {
+    [1].forEach(rank => {
       const podiumGroup = groups.get(rank) || [];
       if (!podiumGroup.length) return;
       const cfg = PODIUM[rank];
       const xOffset = 0;
-      const yOffset = podiumGroup.length >= 3 ? 18 : 16;
+      const yOffset = podiumGroup.length >= 3 ? 28 : 24;
       this.registerLabel(
         `.podium-label[data-rank="${rank}"]`,
-        new THREE.Vector3(cfg.x + xOffset, cfg.h + 0.3, cfg.z - 0.02),
+        new THREE.Vector3(cfg.x + xOffset, cfg.h + 0.18, cfg.z - 0.02),
         yOffset
       );
     });
 
     [...groups.entries()]
-      .filter(([rank]) => rank > 3)
+      .filter(([rank]) => rank > 1)
       .forEach(([rank, people], groupIndex) => {
         if (!people.length) return;
         const world = this.fieldRankPositions.get(rank);
@@ -842,78 +846,6 @@ export class PodioScene {
   }
 
   addPodiums() {
-    [2, 1, 3].forEach(rank => {
-      const cfg = PODIUM[rank];
-      const metalTexture = createMetalTexture(rank);
-      const frontTexture = createPodiumFrontTexture(rank);
-      this.textures.push(metalTexture);
-      this.textures.push(frontTexture);
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        map: metalTexture,
-        roughness: 0.28,
-        metalness: 0.22,
-        emissive: new THREE.Color(cfg.dark),
-        emissiveIntensity: 0.06,
-      });
-
-      const block = new THREE.Mesh(makeRoundedBox(cfg.w, cfg.h, cfg.d, 0.085), material);
-      block.position.set(cfg.x, cfg.h / 2, cfg.z);
-      block.castShadow = true;
-      block.receiveShadow = true;
-      this.add(block);
-      this.addEntryObject(block, 0.08 + rank * 0.035);
-
-      const frontGlow = new THREE.Mesh(
-        new THREE.PlaneGeometry(cfg.w * 0.96, cfg.h * 0.88),
-        new THREE.MeshBasicMaterial({
-          map: frontTexture,
-          transparent: true,
-          opacity: 1,
-          depthTest: false,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        })
-      );
-      frontGlow.position.set(cfg.x, cfg.h * 0.5, cfg.z + cfg.d / 2 + 0.035);
-      this.add(frontGlow);
-      this.addEntryObject(frontGlow, 0.13 + rank * 0.035);
-
-      const shineTexture = createShineTexture();
-      this.textures.push(shineTexture);
-      const shine = new THREE.Mesh(
-        new THREE.PlaneGeometry(cfg.w * 0.9, cfg.h * 0.82),
-        new THREE.MeshBasicMaterial({
-          map: shineTexture,
-          transparent: true,
-          opacity: rank === 1 ? 0.2 : 0.16,
-          depthTest: false,
-          depthWrite: false,
-          side: THREE.DoubleSide,
-        })
-      );
-      shine.position.set(cfg.x, cfg.h * 0.53, cfg.z + cfg.d / 2 + 0.05);
-      shine.userData.baseX = cfg.x;
-      shine.userData.rank = rank;
-      this.add(shine);
-      this.addEntryObject(shine, 0.2 + rank * 0.035);
-      this.shineObjects.push(shine);
-
-      const topGlow = new THREE.Mesh(
-        new THREE.PlaneGeometry(cfg.w * 0.92, cfg.d * 0.72),
-        new THREE.MeshBasicMaterial({
-          map: metalTexture,
-          transparent: true,
-          opacity: rank === 1 ? 0.52 : 0.42,
-          depthWrite: false,
-        })
-      );
-      topGlow.rotation.x = -Math.PI / 2;
-      topGlow.position.set(cfg.x, cfg.h + 0.006, cfg.z - 0.03);
-      this.add(topGlow);
-      this.addEntryObject(topGlow, 0.14 + rank * 0.035);
-
-    });
   }
 
   addField() {
@@ -1003,6 +935,26 @@ export class PodioScene {
     group.userData.onField = Boolean(options.onField);
     group.userData.isLast = Boolean(options.isLast);
 
+    if (options.winner) {
+      const glowTexture = createGlowTexture();
+      this.textures.push(glowTexture);
+      const glow = new THREE.Mesh(
+        new THREE.PlaneGeometry(size * 3.35, size * 3.35),
+        new THREE.MeshBasicMaterial({
+          map: glowTexture,
+          transparent: true,
+          opacity: 0.72,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      glow.position.z = -0.015;
+      glow.userData.isWinnerGlow = true;
+      group.add(glow);
+    }
+
     const ball = new THREE.Mesh(
       new THREE.PlaneGeometry(size * 2.25, size * 2.25),
       new THREE.MeshStandardMaterial({
@@ -1042,17 +994,17 @@ export class PodioScene {
     const groups = groupByRank(this.leaderboard);
     const lastRank = this.leaderboard.reduce((max, person) => Math.max(max, person.rank || 0), 0);
 
-    [1, 2, 3].forEach(rank => {
+    [1].forEach(rank => {
       const people = groups.get(rank) || [];
       people.forEach((_, index) => {
         const size = ballSize(rank, people.length, true);
         const pos = podiumBallPosition(rank, index, people.length);
-        this.addBall(pos.x, PODIUM[rank].h + size * 1.125 + 0.07, pos.z, rank, size);
+        this.addBall(pos.x, pos.y + size * 1.125 + 0.07, pos.z, rank, size, { winner: true });
       });
     });
 
     [...groups.entries()]
-      .filter(([rank]) => rank > 3)
+      .filter(([rank]) => rank > 1)
       .forEach(([rank, people], groupIndex) => {
         const pos = this.fieldRankPositions.get(rank);
         if (!pos) return;
@@ -1083,11 +1035,11 @@ export class PodioScene {
     if (aspect < 0.62) {
       this.camera.fov = 38;
       this.camera.position.set(0, 5.1, 9.35);
-      this.camera.lookAt(0, 0.36, 0.72);
+      this.camera.lookAt(0, 0.28, 0.58);
     } else {
       this.camera.fov = 33;
       this.camera.position.set(0, 4.9, 9.1);
-      this.camera.lookAt(0, 0.34, 0.78);
+      this.camera.lookAt(0, 0.28, 0.62);
     }
     this.camera.updateProjectionMatrix();
   }
@@ -1141,6 +1093,13 @@ export class PodioScene {
       group.position.y = group.userData.baseY - (1 - eased) * 0.3 + float;
       group.lookAt(this.camera.position);
       group.rotateZ(time * 1.35 + index * 0.45);
+      const glow = group.children.find(child => child.userData?.isWinnerGlow);
+      if (glow) {
+        const pulse = 0.5 + 0.5 * Math.sin(time * 2.15 + index * 0.65);
+        glow.material.opacity = 0.48 + pulse * 0.28;
+        const scale = 1 + pulse * 0.16;
+        glow.scale.set(scale, scale, 1);
+      }
     });
     this.shineObjects.forEach(shine => {
       const pulse = 0.5 + 0.5 * Math.sin(time * 1.35 + shine.userData.rank * 1.4);

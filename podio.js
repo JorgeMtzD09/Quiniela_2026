@@ -128,14 +128,14 @@ function buildFieldLabel(rank, group, index, isLast) {
 
 function buildOverlay(leaderboard) {
   const groups = groupByRank(leaderboard);
-  const fieldGroups = [...groups.entries()].filter(([rank]) => rank > 3);
+  const fieldGroups = [...groups.entries()].filter(([rank]) => rank > 1);
   const lastRank = fieldGroups.length ? Math.max(...fieldGroups.map(([rank]) => rank)) : 0;
 
   return `
     <div class="podio-overlay">
       <section class="podium-labels" aria-label="Primeros lugares">
         <div class="podium-label-row">
-          ${[2, 1, 3].map(rank => buildPodiumLabel(rank, groups.get(rank) || [])).join('')}
+          ${buildPodiumLabel(1, groups.get(1) || [])}
         </div>
       </section>
       <section class="field-labels" aria-label="Resto de participantes">

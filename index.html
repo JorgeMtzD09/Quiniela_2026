@@ -99,7 +99,7 @@
           </li>
           <li>
             <span class="info-rule-icon">💵</span>
-            <span>La cooperación es de <strong>$500 pesos</strong> por jugador. Puedes entregarla al organizador hasta <strong>un día antes de que finalice la fase de grupos</strong> (sábado 27 de junio).</span>
+            <span>La cooperación es de <strong>$500 pesos</strong> por jugador. Puedes entregarla al organizador hasta el <strong>18 de julio</strong>.</span>
           </li>
         </ul>
       </div>
@@ -122,35 +122,27 @@
         <h3 class="info-card-title"><span class="info-card-emoji">🏆</span> Premios</h3>
         <div class="prize-total">
           <span class="prize-total-label">Bolsa total</span>
-          <span class="prize-total-value">$2,500</span>
+          <span class="prize-total-value">$2,000</span>
         </div>
         <div class="prize-list">
           <div class="prize-row prize-gold">
             <span class="prize-medal">🥇</span>
-            <span class="prize-place">1<sup>er</sup> Lugar</span>
-            <span class="prize-amount">$1,500</span>
-          </div>
-          <div class="prize-row prize-silver">
-            <span class="prize-medal">🥈</span>
-            <span class="prize-place">2<sup>o</sup> Lugar</span>
-            <span class="prize-amount">$750</span>
-          </div>
-          <div class="prize-row prize-bronze">
-            <span class="prize-medal">🥉</span>
-            <span class="prize-place">3<sup>er</sup> Lugar</span>
-            <span class="prize-amount">$250</span>
+            <span class="prize-place">Ganador único</span>
+            <span class="prize-amount">$2,000</span>
           </div>
         </div>
       </div>
     </section>
 
     <section class="view" id="viewQuiniela">
-      <div class="quiniela-sticky">
-        <div class="person-tabs" id="personTabs"></div>
-        <div class="day-tabs" id="dayTabs"></div>
+      <div class="groups-champion-screen">
+        <div class="groups-champion-card">
+          <div class="groups-champion-ball" aria-hidden="true">⚽</div>
+          <p class="groups-champion-kicker">Fase de Grupos</p>
+          <h2 class="groups-champion-title">Abi</h2>
+          <p class="groups-champion-subtitle">Campeona de Fase de Grupos</p>
+        </div>
       </div>
-      <div class="person-summary" id="personSummary"></div>
-      <div id="personContent" class="match-list"></div>
     </section>
 
     <section class="view" id="viewGrupos">
@@ -169,9 +161,24 @@
             <p class="finales-subtitle">Round de 32 a la final</p>
           </div>
           <div class="finales-controls">
-            <button class="finales-next-btn" id="btnFinalesNext" type="button">Siguiente</button>
+            <button class="finales-nav-btn" id="btnFinalesPrev" type="button" aria-label="Partido anterior" title="Partido anterior">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m15 18-6-6 6-6"/>
+              </svg>
+            </button>
+            <button class="finales-current-btn" id="btnFinalesCurrent" type="button">Actual</button>
+            <button class="finales-nav-btn" id="btnFinalesNext" type="button" aria-label="Siguiente partido" title="Siguiente partido">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m9 18 6-6-6-6"/>
+              </svg>
+            </button>
           </div>
         </div>
+        <div class="finales-mode-toggle" role="group" aria-label="Modo de quiniela">
+          <button class="finales-mode-btn active" id="btnFinalesBracketMode" type="button" data-finales-mode="bracket">Llave</button>
+          <button class="finales-mode-btn" id="btnFinalesListMode" type="button" data-finales-mode="list">Lista</button>
+        </div>
+        <div class="person-tabs finales-person-tabs" id="finalesPersonTabs"></div>
         <div class="finales-viewport" id="finalesViewport">
           <div class="finales-board" id="finalesBoard"></div>
         </div>
@@ -216,13 +223,6 @@
       </svg>
       <span>Podio</span>
     </button>
-    <button class="nav-btn" data-view="quiniela">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-      </svg>
-      <span>Quiniela</span>
-    </button>
     <button class="nav-btn" data-view="finales" data-feature="knockout" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 3v12"/>
@@ -231,17 +231,7 @@
         <path d="M6 15h5a2 2 0 0 0 2-2v-2a2 2 0 0 1 2-2h3"/>
         <path d="M9 21h6"/>
       </svg>
-      <span>Finales</span>
-    </button>
-    <button class="nav-btn" data-view="grupos">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="18" height="18" rx="2"/>
-        <path d="M3 9h18"/>
-        <path d="M3 15h18"/>
-        <path d="M9 3v18"/>
-        <path d="M15 3v18"/>
-      </svg>
-      <span>Grupos</span>
+      <span>Quiniela</span>
     </button>
   </nav>
 

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feed Finales Quiniela 2026</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f5f8;
+      color: #14121f;
+    }
+    main {
+      width: min(92vw, 680px);
+      padding: 24px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(20, 18, 31, 0.14);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+    }
+    p {
+      margin: 0 0 16px;
+      color: #6b7280;
+      line-height: 1.45;
+    }
+    button {
+      width: 100%;
+      min-height: 46px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #1e6fd9, #06b6d4);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.7;
+    }
+    pre {
+      min-height: 170px;
+      max-height: 380px;
+      overflow: auto;
+      margin: 18px 0 0;
+      padding: 14px;
+      border-radius: 10px;
+      background: #111827;
+      color: #d1fae5;
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+    }
+    .warn {
+      padding: 12px;
+      margin-bottom: 16px;
+      border-radius: 10px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Feed Fase Final</h1>
+    <p>Carga o actualiza los documentos <strong>partidos/73</strong> a <strong>partidos/104</strong> en Firestore.</p>
+    <div class="warn">Antes de correrlo, abre temporalmente <code>allow create</code> para <code>partidos</code> en tus reglas. Al terminar, vuelve a cerrarlo.</div>
+    <button id="runFeed" type="button">Cargar fase final</button>
+    <pre id="log">Listo para ejecutar.</pre>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getFirestore, doc, setDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: 'AIzaSyDwEIfkoudtZ6QQge3agKMqs932kg-SHEE',
+      authDomain: 'quiniela-2026-110e5.firebaseapp.com',
+      projectId: 'quiniela-2026-110e5',
+      storageBucket: 'quiniela-2026-110e5.firebasestorage.app',
+      messagingSenderId: '940858489606',
+      appId: '1:940858489606:web:d7d6c50791c56181457c87',
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const button = document.getElementById('runFeed');
+    const logEl = document.getElementById('log');
+
+    function log(message) {
+      logEl.textContent += `\n${message}`;
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function etTimestamp(date, timeET) {
+      return Timestamp.fromDate(new Date(`${date}T${timeET}:00-04:00`));
+    }
+
+    const matches = [
+      { id: 73, round: 'r32', roundOrder: 0, local: '🇿🇦 Sudáfrica', visitante: '🇨🇦 Canadá', date: '2026-06-28', timeET: '13:00', golesLocal: 0, golesVisitante: 1, estado: 'finalizado', ganador: '🇨🇦 Canadá' },
+      { id: 75, round: 'r32', roundOrder: 1, local: '🇳🇱 Países Bajos', visitante: '🇲🇦 Marruecos', date: '2026-06-29', timeET: '21:00' },
+      { id: 74, round: 'r32', roundOrder: 2, local: '🇩🇪 Alemania', visitante: '🇵🇾 Paraguay', date: '2026-06-29', timeET: '16:30' },
+      { id: 77, round: 'r32', roundOrder: 3, local: '🇫🇷 Francia', visitante: '🇸🇪 Suecia', date: '2026-06-30', timeET: '17:00' },
+      { id: 76, round: 'r32', roundOrder: 4, local: '🇧🇷 Brasil', visitante: '🇯🇵 Japón', date: '2026-06-29', timeET: '13:00' },
+      { id: 78, round: 'r32', roundOrder: 5, local: '🇨🇮 Costa de Marfil', visitante: '🇳🇴 Noruega', date: '2026-06-30', timeET: '13:00' },
+      { id: 79, round: 'r32', roundOrder: 6, local: '🇲🇽 México', visitante: '🇪🇨 Ecuador', date: '2026-06-30', timeET: '21:00' },
+      { id: 80, round: 'r32', roundOrder: 7, local: '🏴 Inglaterra', visitante: '🇨🇩 RD Congo', date: '2026-07-01', timeET: '12:00' },
+      { id: 83, round: 'r32-right', roundOrder: 0, local: '🇵🇹 Portugal', visitante: '🇭🇷 Croacia', date: '2026-07-02', timeET: '19:00' },
+      { id: 84, round: 'r32-right', roundOrder: 1, local: '🇪🇸 España', visitante: '🇦🇹 Austria', date: '2026-07-02', timeET: '15:00' },
+      { id: 81, round: 'r32-right', roundOrder: 2, local: '🇺🇸 Estados Unidos', visitante: '🇧🇦 Bosnia y Herzegovina', date: '2026-07-01', timeET: '20:00' },
+      { id: 82, round: 'r32-right', roundOrder: 3, local: '🇧🇪 Bélgica', visitante: '🇸🇳 Senegal', date: '2026-07-01', timeET: '16:00' },
+      { id: 86, round: 'r32-right', roundOrder: 4, local: '🇦🇷 Argentina', visitante: '🇨🇻 Cabo Verde', date: '2026-07-03', timeET: '18:00' },
+      { id: 88, round: 'r32-right', roundOrder: 5, local: '🇦🇺 Australia', visitante: '🇪🇬 Egipto', date: '2026-07-03', timeET: '14:00' },
+      { id: 85, round: 'r32-right', roundOrder: 6, local: '🇨🇭 Suiza', visitante: '🇩🇿 Argelia', date: '2026-07-02', timeET: '23:00' },
+      { id: 87, round: 'r32-right', roundOrder: 7, local: '🇨🇴 Colombia', visitante: '🇬🇭 Ghana', date: '2026-07-03', timeET: '21:30' },
+      { id: 89, round: 'r16', roundOrder: 0, sourceA: 73, sourceB: 75, local: '🏳️ Ganador Partido 73', visitante: '🏳️ Ganador Partido 75', date: '2026-07-04', timeET: '13:00' },
+      { id: 90, round: 'r16', roundOrder: 1, sourceA: 74, sourceB: 77, local: '🏳️ Ganador Partido 74', visitante: '🏳️ Ganador Partido 77', date: '2026-07-04', timeET: '16:00' },
+      { id: 91, round: 'r16', roundOrder: 2, sourceA: 76, sourceB: 78, local: '🏳️ Ganador Partido 76', visitante: '🏳️ Ganador Partido 78', date: '2026-07-05', timeET: '13:00' },
+      { id: 92, round: 'r16', roundOrder: 3, sourceA: 79, sourceB: 80, local: '🏳️ Ganador Partido 79', visitante: '🏳️ Ganador Partido 80', date: '2026-07-05', timeET: '16:00' },
+      { id: 93, round: 'r16-right', roundOrder: 0, sourceA: 83, sourceB: 84, local: '🏳️ Ganador Partido 83', visitante: '🏳️ Ganador Partido 84', date: '2026-07-06', timeET: '13:00' },
+      { id: 94, round: 'r16-right', roundOrder: 1, sourceA: 81, sourceB: 82, local: '🏳️ Ganador Partido 81', visitante: '🏳️ Ganador Partido 82', date: '2026-07-06', timeET: '16:00' },
+      { id: 95, round: 'r16-right', roundOrder: 2, sourceA: 86, sourceB: 88, local: '🏳️ Ganador Partido 86', visitante: '🏳️ Ganador Partido 88', date: '2026-07-07', timeET: '13:00' },
+      { id: 96, round: 'r16-right', roundOrder: 3, sourceA: 85, sourceB: 87, local: '🏳️ Ganador Partido 85', visitante: '🏳️ Ganador Partido 87', date: '2026-07-07', timeET: '16:00' },
+      { id: 97, round: 'qf', roundOrder: 0, sourceA: 89, sourceB: 90, local: '🏳️ Ganador Partido 89', visitante: '🏳️ Ganador Partido 90', date: '2026-07-09', timeET: '15:00' },
+      { id: 98, round: 'qf', roundOrder: 1, sourceA: 93, sourceB: 94, local: '🏳️ Ganador Partido 93', visitante: '🏳️ Ganador Partido 94', date: '2026-07-10', timeET: '15:00' },
+      { id: 99, round: 'qf-right', roundOrder: 0, sourceA: 91, sourceB: 92, local: '🏳️ Ganador Partido 91', visitante: '🏳️ Ganador Partido 92', date: '2026-07-10', timeET: '18:00' },
+      { id: 100, round: 'qf-right', roundOrder: 1, sourceA: 95, sourceB: 96, local: '🏳️ Ganador Partido 95', visitante: '🏳️ Ganador Partido 96', date: '2026-07-11', timeET: '15:00' },
+      { id: 101, round: 'sf', roundOrder: 0, sourceA: 97, sourceB: 98, local: '🏳️ Ganador Partido 97', visitante: '🏳️ Ganador Partido 98', date: '2026-07-14', timeET: '20:00' },
+      { id: 102, round: 'sf-right', roundOrder: 0, sourceA: 99, sourceB: 100, local: '🏳️ Ganador Partido 99', visitante: '🏳️ Ganador Partido 100', date: '2026-07-15', timeET: '20:00' },
+      { id: 103, round: 'final', roundOrder: 0, sourceA: 101, sourceB: 102, local: '🏳️ Ganador Partido 101', visitante: '🏳️ Ganador Partido 102', date: '2026-07-19', timeET: '18:00' },
+      { id: 104, round: 'third', roundOrder: 0, sourceA: 101, sourceB: 102, local: '🏳️ Perdedor Partido 101', visitante: '🏳️ Perdedor Partido 102', date: '2026-07-18', timeET: '18:00' },
+    ];
+
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      logEl.textContent = 'Conectando a Firebase...';
+
+      try {
+        await signInAnonymously(auth);
+        log('Sesión anónima OK.');
+
+        for (const match of matches) {
+          const { date, timeET, ...rest } = match;
+          const payload = {
+            ...rest,
+            fecha: etTimestamp(date, timeET),
+            golesLocal: match.golesLocal ?? null,
+            golesVisitante: match.golesVisitante ?? null,
+            estado: match.estado || 'pendiente',
+            ganador: match.ganador || null,
+            definicion: match.definicion || null,
+          };
+          await setDoc(doc(db, 'partidos', String(match.id)), payload, { merge: true });
+          log(`OK partidos/${match.id}: ${match.local} vs ${match.visitante}`);
+        }
+
+        log(`Listo. Se cargaron ${matches.length} partidos.`);
+      } catch (err) {
+        console.error(err);
+        log(`ERROR: ${err.message}`);
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

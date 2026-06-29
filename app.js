@@ -17,7 +17,7 @@ import {
 // ============================================================
 export const CONFIG = {
   features: {
-    knockoutEnabled: false,
+    knockoutEnabled: true,
   },
   firebase: {
     apiKey: 'AIzaSyDwEIfkoudtZ6QQge3agKMqs932kg-SHEE',
@@ -55,11 +55,11 @@ const MATCH_DURATION_MS = 120 * 60 * 1000;
 const CLIENT_LIVE_SYNC_BEFORE_MS = 30 * 60 * 1000;
 const CLIENT_LIVE_SYNC_AFTER_MS = MATCH_DURATION_MS + 30 * 60 * 1000;
 const LIVE_SYNC_STALE_MS = 3 * 60 * 1000;
-const KNOCKOUT_ID_START = 101;
+const KNOCKOUT_ID_START = 73;
 const KNOCKOUT_ZOOM_MAX = 1.55;
 const KNOCKOUT_CARD_WIDTH = 330;
 const KNOCKOUT_COL_GAP = 96;
-const KNOCKOUT_SLOT_HEIGHT = 292;
+const KNOCKOUT_SLOT_HEIGHT = 370;
 const KNOCKOUT_CARD_MID = 122;
 const KNOCKOUT_BOARD_PADDING_X = 36;
 const KNOCKOUT_BOARD_PADDING_TOP = 82;
@@ -79,66 +79,95 @@ const KNOCKOUT_ROUNDS = [
   { key: 'r32-right', title: 'Round de 32', className: 'round-r32' },
 ];
 
-function knockoutPlaceholder(n) {
-  return `🏳️ Clasificado ${String(n).padStart(2, '0')}`;
-}
-
 const KNOCKOUT_BASE_MATCHES = [
-  ...Array.from({ length: 16 }, (_, i) => ({
-    id: KNOCKOUT_ID_START + i,
-    round: i < 8 ? 'r32' : 'r32-right',
-    roundOrder: i < 8 ? i : i - 8,
-    local: knockoutPlaceholder(i * 2 + 1),
-    visitante: knockoutPlaceholder(i * 2 + 2),
-    date: '2026-06-28',
-    timeET: String(12 + (i % 4) * 3).padStart(2, '0') + ':00',
-  })),
-  ...Array.from({ length: 8 }, (_, i) => ({
-    id: KNOCKOUT_ID_START + 16 + i,
-    round: i < 4 ? 'r16' : 'r16-right',
-    roundOrder: i < 4 ? i : i - 4,
-    sourceA: KNOCKOUT_ID_START + i * 2,
-    sourceB: KNOCKOUT_ID_START + i * 2 + 1,
-    date: '2026-07-04',
-    timeET: String(12 + (i % 4) * 3).padStart(2, '0') + ':00',
-  })),
-  ...Array.from({ length: 4 }, (_, i) => ({
-    id: KNOCKOUT_ID_START + 24 + i,
-    round: i < 2 ? 'qf' : 'qf-right',
-    roundOrder: i < 2 ? i : i - 2,
-    sourceA: KNOCKOUT_ID_START + 16 + i * 2,
-    sourceB: KNOCKOUT_ID_START + 16 + i * 2 + 1,
-    date: '2026-07-09',
-    timeET: String(15 + (i % 2) * 3).padStart(2, '0') + ':00',
-  })),
+  { id: 73, round: 'r32', roundOrder: 0, local: '🇿🇦 Sudáfrica', visitante: '🇨🇦 Canadá', date: '2026-06-28', timeET: '13:00' },
+  { id: 75, round: 'r32', roundOrder: 1, local: '🇳🇱 Países Bajos', visitante: '🇲🇦 Marruecos', date: '2026-06-29', timeET: '21:00' },
+  { id: 74, round: 'r32', roundOrder: 2, local: '🇩🇪 Alemania', visitante: '🇵🇾 Paraguay', date: '2026-06-29', timeET: '16:30' },
+  { id: 77, round: 'r32', roundOrder: 3, local: '🇫🇷 Francia', visitante: '🇸🇪 Suecia', date: '2026-06-30', timeET: '17:00' },
+  { id: 76, round: 'r32', roundOrder: 4, local: '🇧🇷 Brasil', visitante: '🇯🇵 Japón', date: '2026-06-29', timeET: '13:00' },
+  { id: 78, round: 'r32', roundOrder: 5, local: '🇨🇮 Costa de Marfil', visitante: '🇳🇴 Noruega', date: '2026-06-30', timeET: '13:00' },
+  { id: 79, round: 'r32', roundOrder: 6, local: '🇲🇽 México', visitante: '🇪🇨 Ecuador', date: '2026-06-30', timeET: '21:00' },
+  { id: 80, round: 'r32', roundOrder: 7, local: '🏴 Inglaterra', visitante: '🇨🇩 RD Congo', date: '2026-07-01', timeET: '12:00' },
+  { id: 83, round: 'r32-right', roundOrder: 0, local: '🇵🇹 Portugal', visitante: '🇭🇷 Croacia', date: '2026-07-02', timeET: '19:00' },
+  { id: 84, round: 'r32-right', roundOrder: 1, local: '🇪🇸 España', visitante: '🇦🇹 Austria', date: '2026-07-02', timeET: '15:00' },
+  { id: 81, round: 'r32-right', roundOrder: 2, local: '🇺🇸 Estados Unidos', visitante: '🇧🇦 Bosnia y Herzegovina', date: '2026-07-01', timeET: '20:00' },
+  { id: 82, round: 'r32-right', roundOrder: 3, local: '🇧🇪 Bélgica', visitante: '🇸🇳 Senegal', date: '2026-07-01', timeET: '16:00' },
+  { id: 86, round: 'r32-right', roundOrder: 4, local: '🇦🇷 Argentina', visitante: '🇨🇻 Cabo Verde', date: '2026-07-03', timeET: '18:00' },
+  { id: 88, round: 'r32-right', roundOrder: 5, local: '🇦🇺 Australia', visitante: '🇪🇬 Egipto', date: '2026-07-03', timeET: '14:00' },
+  { id: 85, round: 'r32-right', roundOrder: 6, local: '🇨🇭 Suiza', visitante: '🇩🇿 Argelia', date: '2026-07-02', timeET: '23:00' },
+  { id: 87, round: 'r32-right', roundOrder: 7, local: '🇨🇴 Colombia', visitante: '🇬🇭 Ghana', date: '2026-07-03', timeET: '21:30' },
+  { id: 89, round: 'r16', roundOrder: 0, sourceA: 73, sourceB: 75, local: '🏳️ Ganador Partido 73', visitante: '🏳️ Ganador Partido 75', date: '2026-07-04', timeET: '13:00' },
+  { id: 90, round: 'r16', roundOrder: 1, sourceA: 74, sourceB: 77, local: '🏳️ Ganador Partido 74', visitante: '🏳️ Ganador Partido 77', date: '2026-07-04', timeET: '16:00' },
+  { id: 91, round: 'r16', roundOrder: 2, sourceA: 76, sourceB: 78, local: '🏳️ Ganador Partido 76', visitante: '🏳️ Ganador Partido 78', date: '2026-07-05', timeET: '13:00' },
+  { id: 92, round: 'r16', roundOrder: 3, sourceA: 79, sourceB: 80, local: '🏳️ Ganador Partido 79', visitante: '🏳️ Ganador Partido 80', date: '2026-07-05', timeET: '16:00' },
+  { id: 93, round: 'r16-right', roundOrder: 0, sourceA: 83, sourceB: 84, local: '🏳️ Ganador Partido 83', visitante: '🏳️ Ganador Partido 84', date: '2026-07-06', timeET: '13:00' },
+  { id: 94, round: 'r16-right', roundOrder: 1, sourceA: 81, sourceB: 82, local: '🏳️ Ganador Partido 81', visitante: '🏳️ Ganador Partido 82', date: '2026-07-06', timeET: '16:00' },
+  { id: 95, round: 'r16-right', roundOrder: 2, sourceA: 86, sourceB: 88, local: '🏳️ Ganador Partido 86', visitante: '🏳️ Ganador Partido 88', date: '2026-07-07', timeET: '13:00' },
+  { id: 96, round: 'r16-right', roundOrder: 3, sourceA: 85, sourceB: 87, local: '🏳️ Ganador Partido 85', visitante: '🏳️ Ganador Partido 87', date: '2026-07-07', timeET: '16:00' },
+  { id: 97, round: 'qf', roundOrder: 0, sourceA: 89, sourceB: 90, local: '🏳️ Ganador Partido 89', visitante: '🏳️ Ganador Partido 90', date: '2026-07-09', timeET: '15:00' },
+  { id: 98, round: 'qf', roundOrder: 1, sourceA: 93, sourceB: 94, local: '🏳️ Ganador Partido 93', visitante: '🏳️ Ganador Partido 94', date: '2026-07-10', timeET: '15:00' },
+  { id: 99, round: 'qf-right', roundOrder: 0, sourceA: 91, sourceB: 92, local: '🏳️ Ganador Partido 91', visitante: '🏳️ Ganador Partido 92', date: '2026-07-10', timeET: '18:00' },
+  { id: 100, round: 'qf-right', roundOrder: 1, sourceA: 95, sourceB: 96, local: '🏳️ Ganador Partido 95', visitante: '🏳️ Ganador Partido 96', date: '2026-07-11', timeET: '15:00' },
   {
-    id: KNOCKOUT_ID_START + 28,
+    id: 101,
     round: 'sf',
     roundOrder: 0,
-    sourceA: KNOCKOUT_ID_START + 24,
-    sourceB: KNOCKOUT_ID_START + 25,
+    sourceA: 97,
+    sourceB: 98,
+    local: '🏳️ Ganador Partido 97',
+    visitante: '🏳️ Ganador Partido 98',
     date: '2026-07-14',
     timeET: '20:00',
   },
   {
-    id: KNOCKOUT_ID_START + 29,
+    id: 102,
     round: 'sf-right',
     roundOrder: 0,
-    sourceA: KNOCKOUT_ID_START + 26,
-    sourceB: KNOCKOUT_ID_START + 27,
+    sourceA: 99,
+    sourceB: 100,
+    local: '🏳️ Ganador Partido 99',
+    visitante: '🏳️ Ganador Partido 100',
     date: '2026-07-15',
     timeET: '20:00',
   },
   {
-    id: KNOCKOUT_ID_START + 30,
+    id: 103,
     round: 'final',
     roundOrder: 0,
-    sourceA: KNOCKOUT_ID_START + 28,
-    sourceB: KNOCKOUT_ID_START + 29,
+    sourceA: 101,
+    sourceB: 102,
+    local: '🏳️ Ganador Partido 101',
+    visitante: '🏳️ Ganador Partido 102',
     date: '2026-07-19',
     timeET: '18:00',
   },
+  {
+    id: 104,
+    round: 'third',
+    roundOrder: 0,
+    sourceA: 101,
+    sourceB: 102,
+    local: '🏳️ Perdedor Partido 101',
+    visitante: '🏳️ Perdedor Partido 102',
+    date: '2026-07-18',
+    timeET: '18:00',
+  },
 ];
+
+const KNOCKOUT_VISUAL_LAYOUT = {
+  76: { round: 'r32-right', roundOrder: 0 },
+  78: { round: 'r32-right', roundOrder: 1 },
+  79: { round: 'r32-right', roundOrder: 2 },
+  80: { round: 'r32-right', roundOrder: 3 },
+  83: { round: 'r32', roundOrder: 4 },
+  84: { round: 'r32', roundOrder: 5 },
+  81: { round: 'r32', roundOrder: 6 },
+  82: { round: 'r32', roundOrder: 7 },
+  91: { round: 'r16-right', roundOrder: 0 },
+  92: { round: 'r16-right', roundOrder: 1 },
+  93: { round: 'r16', roundOrder: 2 },
+  94: { round: 'r16', roundOrder: 3 },
+};
 
 // ============================================================
 // Estados de partido y helpers para estado/marcador
@@ -197,6 +226,34 @@ function matchFinalized(m) {
 // Determina si un partido tiene marcador capturado (sin importar el estado).
 function matchHasScore(m) {
   return m?.golesLocal !== null && m?.golesVisitante !== null;
+}
+
+function isKnockoutMatch(m) {
+  return !!m?.round || Number(m?.id) >= KNOCKOUT_ID_START;
+}
+
+function matchTied(gl, gv) {
+  return gl !== null && gv !== null && Number(gl) === Number(gv);
+}
+
+function normalizedWinner(value) {
+  return String(value || '').trim() || null;
+}
+
+function isPlaceholderTeam(team) {
+  return normalizedWinner(team)?.includes('Ganador Partido') || false;
+}
+
+function knockoutTeamsResolved(m) {
+  if (!isKnockoutMatch(m) || (!m?.sourceA && !m?.sourceB)) return true;
+  return !isPlaceholderTeam(m.local) && !isPlaceholderTeam(m.visitante);
+}
+
+function inferredWinner(m, gl = m?.golesLocal, gv = m?.golesVisitante) {
+  const explicit = normalizedWinner(m?.ganador);
+  if (explicit) return explicit;
+  if (gl === null || gv === null || gl === gv) return null;
+  return gl > gv ? m.local : m.visitante;
 }
 // ============================================================
 // Firebase
@@ -263,6 +320,8 @@ let state = {
   activeView: 'info',
   gruposPollTimer: null,
   knockoutZoom: 0.86,
+  focusedFinalesMatchId: null,
+  finalesMode: 'bracket',
 };
 
 let matchLockTimer = null;
@@ -1014,7 +1073,7 @@ function logout() {
 function pronosticosFromFirestore(docs, partidos) {
   const pronosticos = {};
   const meta = {};
-  const predictionMatches = [...partidos, ...baseKnockoutMatches()];
+  const predictionMatches = partidos;
 
   for (const p of state.participantes) {
     pronosticos[p.clave] = predictionMatches.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
@@ -1039,6 +1098,8 @@ function pronosticosFromFirestore(docs, partidos) {
         id: m.id,
         golesLocal: item && item.l != null ? Number(item.l) : null,
         golesVisitante: item && item.v != null ? Number(item.v) : null,
+        ganador: item && item.ganador ? String(item.ganador) : null,
+        definicion: item && item.definicion ? String(item.definicion) : null,
       };
     });
   });
@@ -1059,14 +1120,14 @@ function renderShareToggle() {
   if (!wrap || !toggle || !text) return;
 
   const show = !!state.session && !isAdminSession()
-    && (state.activeView === 'quiniela' || (knockoutEnabled() && state.activeView === 'finales'));
+    && knockoutEnabled() && state.activeView === 'finales';
   wrap.hidden = !show;
   if (!show) return;
 
   const enabled = ownSharePreference();
   toggle.checked = enabled;
   toggle.disabled = state.sharePreferenceSaving;
-  text.textContent = 'Compartir resultados';
+  text.textContent = 'Compartir pronósticos';
   wrap.classList.toggle('is-saving', state.sharePreferenceSaving);
 }
 
@@ -1205,6 +1266,13 @@ function parsePartidoDoc(d) {
     minuto: Number.isInteger(m.minuto) ? m.minuto : null,
     providerStatus: m.providerStatus || null,
     lastLiveSync: parsePartidoFecha(m.lastLiveSync),
+    round: m.round || null,
+    roundOrder: Number.isFinite(Number(m.roundOrder)) ? Number(m.roundOrder) : 0,
+    roundTitle: m.roundTitle || knockoutRoundTitle(m.round),
+    sourceA: m.sourceA != null ? Number(m.sourceA) : null,
+    sourceB: m.sourceB != null ? Number(m.sourceB) : null,
+    ganador: normalizedWinner(m.ganador),
+    definicion: m.definicion || null,
   };
 }
 
@@ -1225,7 +1293,7 @@ function subscribeAdmin() {
   );
 }
 
-async function saveMatchResult(docId, gl, gv, estado = null) {
+async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, definicion = null) {
   if (!isAdminSession()) throw new Error('Sin permisos de admin');
   if (!db) throw new Error('Sin conexión');
 
@@ -1247,12 +1315,19 @@ async function saveMatchResult(docId, gl, gv, estado = null) {
     nextStatus = matchInLiveWindow(m) ? MATCH_STATUS.LIVE : MATCH_STATUS.FINAL;
   }
 
-  await updateDoc(doc(db, 'partidos', docId), {
+  const update = {
     golesLocal: gl,
     golesVisitante: gv,
     estado: nextStatus,
     faseEnVivo: nextStatus === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null,
-  });
+  };
+
+  if (isKnockoutMatch(m)) {
+    update.ganador = gl === null || gv === null ? null : normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
+    update.definicion = definicion || null;
+  }
+
+  await updateDoc(doc(db, 'partidos', docId), update);
 }
 
 async function saveMatchLivePhase(docId, faseEnVivo) {
@@ -1293,6 +1368,14 @@ function buildAdminMatchCard(m) {
         : status === MATCH_STATUS.LIVE
           ? `<span class="match-points pts-live"><span class="live-ball">⚽</span> ${displayLiveMinute(m)}</span>`
           : `<span class="match-points pts-pending">Sin resultado</span>`;
+  const definitionLabel = m.definicion === 'penales'
+    ? 'Definición por penales'
+    : m.definicion === 'te'
+      ? 'Definición en tiempo extra'
+      : '';
+  const definitionHTML = definitionLabel
+    ? `<div class="match-definition admin-definition">${definitionLabel}</div>`
+    : '';
   // Mostrar siempre los controles de estado para el admin
   const livePhaseHTML = `
       <div class="admin-live-phase" role="group" aria-label="Estado del partido">
@@ -1317,6 +1400,7 @@ function buildAdminMatchCard(m) {
                  name="admin_v_${m.docId}" inputmode="numeric" placeholder="-" value="${gvVal}">
         </div>
       </div>
+      ${definitionHTML}
       ${livePhaseHTML}
       <div class="admin-footer">
         ${statusHTML}
@@ -1368,6 +1452,64 @@ function validateScoreInputs(lRaw, vRaw) {
   return { gl, gv };
 }
 
+function definitionChoiceHTML(selectedDefinition = 'te', fieldName = 'definition') {
+  const selected = selectedDefinition || 'te';
+  return `
+    <div class="definition-choice" data-field="${fieldName}">
+      <div class="winner-choice-label">Definición</div>
+      <div class="winner-choice-options two-cols">
+        <button type="button" class="definition-choice-btn${selected === 'te' ? ' active' : ''}" data-definition="te">Tiempo extra</button>
+        <button type="button" class="definition-choice-btn${selected === 'penales' ? ' active' : ''}" data-definition="penales">Penales</button>
+      </div>
+    </div>`;
+}
+
+function winnerChoiceHTML(m, selectedWinner = null, fieldName = 'winner') {
+  if (!isKnockoutMatch(m)) return '';
+  const selected = normalizedWinner(selectedWinner);
+  const teams = [m.local, m.visitante].filter(Boolean);
+  return `
+    <div class="winner-choice" data-field="${fieldName}">
+      <div class="winner-choice-label">Equipo que avanza</div>
+      <div class="winner-choice-options">
+        ${teams.map(team => `
+          <button type="button" class="winner-choice-btn${selected === team ? ' active' : ''}" data-winner="${team}">
+            ${team}
+          </button>`).join('')}
+      </div>
+    </div>`;
+}
+
+function attachWinnerChoiceListeners(root = document) {
+  root.querySelectorAll('.winner-choice').forEach(group => {
+    group.querySelectorAll('.winner-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.dataset.value = btn.dataset.winner;
+        group.querySelectorAll('.winner-choice-btn').forEach(b => b.classList.toggle('active', b === btn));
+        if (state.pendingSave) state.pendingSave.ganador = btn.dataset.winner;
+        if (state.adminPendingSave) state.adminPendingSave.ganador = btn.dataset.winner;
+      });
+    });
+  });
+  root.querySelectorAll('.definition-choice').forEach(group => {
+    group.querySelectorAll('.definition-choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        group.dataset.value = btn.dataset.definition;
+        group.querySelectorAll('.definition-choice-btn').forEach(b => b.classList.toggle('active', b === btn));
+        if (state.pendingSave) state.pendingSave.definicion = btn.dataset.definition;
+        if (state.adminPendingSave) state.adminPendingSave.definicion = btn.dataset.definition;
+      });
+    });
+  });
+}
+
+function adminSaveWillFinalize(m, gl, gv, estado) {
+  if (gl === null || gv === null) return false;
+  if (estado === MATCH_STATUS.FINAL) return true;
+  if (estado === MATCH_STATUS.PENDING) return !matchInLiveWindow(m);
+  return false;
+}
+
 function attachAdminListeners() {
   document.querySelectorAll('.editable-admin-card').forEach(card => {
     const docId = card.dataset.docId;
@@ -1395,6 +1537,10 @@ async function setAdminMatchStatus(docId, status) {
   // No se puede finalizar sin marcador
   if (status === MATCH_STATUS.FINAL && !matchHasScore(m)) {
     showToast('Primero captura el resultado para finalizar el partido.', true);
+    return;
+  }
+  if (status === MATCH_STATUS.FINAL && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante) && !m.ganador) {
+    showToast('Guarda el resultado y el ganador por penales.', true);
     return;
   }
   // No se puede volver a pendiente si ya existe marcador; usar Restaurar
@@ -1477,17 +1623,32 @@ function openAdminConfirm(docId) {
   if (!isValidMatchStatus(estado)) {
     estado = normalizeMatchStatus(m);
   }
-  state.adminPendingSave = { docId, gl: validated.gl, gv: validated.gv, estado };
+  const needsWinner = isKnockoutMatch(m)
+    && matchTied(validated.gl, validated.gv)
+    && adminSaveWillFinalize(m, validated.gl, validated.gv, estado);
+  const inferred = isKnockoutMatch(m) ? winnerFromScore(m.local, m.visitante, validated.gl, validated.gv) : null;
+  state.adminPendingSave = {
+    docId,
+    gl: validated.gl,
+    gv: validated.gv,
+    estado,
+    ganador: needsWinner ? null : inferred,
+    definicion: needsWinner ? 'te' : null,
+  };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Confirmar resultado';
-  if (warnEl) warnEl.textContent = 'Puedes corregir el resultado las veces que necesites.';
+  if (warnEl) warnEl.textContent = needsWinner
+    ? 'Elige quién avanzó y si fue en tiempo extra o penales antes de guardar.'
+    : 'Puedes corregir el resultado las veces que necesites.';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
       <span class="modal-team">${m.local}</span>
       <span class="modal-score">${validated.gl} - ${validated.gv}</span>
       <span class="modal-team">${m.visitante}</span>
-    </div>`;
+    </div>
+    ${needsWinner ? `${definitionChoiceHTML('te', 'admin-definition')}${winnerChoiceHTML(m, null, 'admin-winner')}` : ''}`;
+  attachWinnerChoiceListeners(document.getElementById('modalBody'));
   document.getElementById('confirmModal').hidden = false;
 }
 
@@ -1500,6 +1661,8 @@ function openAdminResetConfirm(docId) {
     gv: null,
     reset: true,
     estado: MATCH_STATUS.PENDING,
+    ganador: null,
+    definicion: null,
   };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
@@ -1522,7 +1685,15 @@ async function handleAdminModalConfirm() {
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await saveMatchResult(docId, gl, gv, estado);
+    if (!reset && isKnockoutMatch(state.partidos.find(x => x.docId === docId)) && matchTied(gl, gv) && !pending.ganador) {
+      showToast('Elige quién avanzó.', true);
+      return;
+    }
+    if (!reset && isKnockoutMatch(state.partidos.find(x => x.docId === docId)) && matchTied(gl, gv) && !pending.definicion) {
+      showToast('Elige si fue en tiempo extra o penales.', true);
+      return;
+    }
+    await saveMatchResult(docId, gl, gv, estado, pending.ganador, pending.definicion);
     state.adminPendingSave = null;
     state.adminEditingId = null;
     closeModal();
@@ -1586,7 +1757,7 @@ function handleLiveSyncNow() {
 // ============================================================
 // Guardar un pronóstico (por partido)
 // ============================================================
-async function saveSingleMatch(matchId, gl, gv) {
+async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = null) {
   if (!state.session) throw new Error('Inicia sesión');
   if (!db) throw new Error('Sin conexión');
 
@@ -1600,11 +1771,19 @@ async function saveSingleMatch(matchId, gl, gv) {
 
   const m = findAnyMatch(matchId);
   if (!m || matchHasScore(m)) throw new Error('Ese partido ya no se puede pronosticar');
+  if (!knockoutTeamsResolved(m)) throw new Error('Esta llave todavía no está cerrada. Podrás pronosticar cuando ambos equipos estén definidos.');
   if (matchStarted(m)) throw new Error('Ya cerró el tiempo para pronosticar este partido');
 
   const { doc, setDoc, serverTimestamp } = firestoreFns;
+  const item = { l: gl, v: gv };
+  if (isKnockoutMatch(m)) {
+    const winner = normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
+    if (winner) item.ganador = winner;
+    if (matchTied(gl, gv) && definicion) item.definicion = definicion;
+  }
+
   await setDoc(doc(db, 'pronosticos', clave), {
-    items: { ...saved, [String(matchId)]: { l: gl, v: gv } },
+    items: { ...saved, [String(matchId)]: item },
     actualizado: serverTimestamp(),
   }, { merge: true });
 }
@@ -1619,11 +1798,21 @@ function getOutcome(golesL, golesV) {
   return 'E';
 }
 
-function calcPoints(predL, predV, realL, realV) {
+function calcPoints(predL, predV, realL, realV, predWinner = null, realWinner = null, knockout = false, local = null, visitante = null) {
   if (realL === null || realV === null) return null;
   if (predL === null || predV === null) return 0;
   let pts = 0;
-  if (getOutcome(predL, predV) === getOutcome(realL, realV)) pts += 3;
+  if (knockout) {
+    const predicted = normalizedWinner(predWinner)
+      || (predL === predV ? null : (predL > predV ? normalizedWinner(local) : normalizedWinner(visitante)))
+      || (predL === predV ? null : getOutcome(predL, predV));
+    const actual = normalizedWinner(realWinner)
+      || (realL === realV ? null : (realL > realV ? normalizedWinner(local) : normalizedWinner(visitante)))
+      || (realL === realV ? null : getOutcome(realL, realV));
+    if (predicted && actual && predicted === actual) pts += 3;
+  } else if (getOutcome(predL, predV) === getOutcome(realL, realV)) {
+    pts += 3;
+  }
   if (predL === realL && predV === realV) pts += 1;
   return pts;
 }
@@ -1636,12 +1825,23 @@ function buildPodio(partidos, participantes, pronosticos) {
     preds.forEach(pr => { predMap[pr.id] = pr; });
 
     for (const m of partidos) {
+      if (!isKnockoutMatch(m)) continue;
       // Solo contar partidos finalizados con marcador definitivo para puntuar
       if (!matchFinalized(m) || !matchHasScore(m)) continue;
       played++;
       const pr = predMap[m.id];
       if (pr) {
-        const pts = calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) || 0;
+        const pts = calcPoints(
+          pr.golesLocal,
+          pr.golesVisitante,
+          m.golesLocal,
+          m.golesVisitante,
+          pr.ganador,
+          inferredWinner(m),
+          isKnockoutMatch(m),
+          m.local,
+          m.visitante
+        ) || 0;
         total += pts;
         if (pts > 0) aciertos++;
       }
@@ -1796,28 +1996,35 @@ function centerActiveDayTab() {
 }
 
 function renderPersonTabs() {
-  const el = document.getElementById('personTabs');
+  const containers = [
+    document.getElementById('personTabs'),
+    document.getElementById('finalesPersonTabs'),
+  ].filter(Boolean);
+  if (!containers.length) return;
   const ordered = state.podio.length
     ? state.podio.map(p => ({ clave: p.clave, nombreVisible: p.nombre }))
     : state.participantes;
-  el.innerHTML = ordered.map(p => {
+  const html = ordered.map(p => {
     const isMe = state.session && state.session.clave === p.clave;
     return `
     <button class="person-tab ${state.selectedPerson === p.clave ? 'active' : ''}" data-person="${p.clave}">
       ${p.nombreVisible}${isMe ? ' <span class="tab-me">(tú)</span>' : ''}
     </button>`;
   }).join('');
-  el.querySelectorAll('.person-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (state.editingMatchId !== null) {
-        const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de persona?');
-        if (!ok) return;
-        state.editingMatchId = null;
-      }
-      state.selectedPerson = btn.dataset.person;
-      renderPersonTabs();
-      if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
-      else renderPersonDetail();
+  containers.forEach(el => {
+    el.innerHTML = html;
+    el.querySelectorAll('.person-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (state.editingMatchId !== null) {
+          const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de persona?');
+          if (!ok) return;
+          state.editingMatchId = null;
+        }
+        state.selectedPerson = btn.dataset.person;
+        renderPersonTabs();
+        if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
+        else if (state.activeView !== 'quiniela') renderPersonDetail();
+      });
     });
   });
 }
@@ -1826,6 +2033,9 @@ function renderPersonDetail({ resetScroll = false } = {}) {
   const scrollY = resetScroll ? null : window.scrollY;
   const person = state.selectedPerson;
   if (!person) return;
+  const summaryEl = document.getElementById('personSummary');
+  const contentEl = document.getElementById('personContent');
+  if (!summaryEl || !contentEl) return;
 
   const isOwn = !!(state.session && state.session.clave === person);
   const meta = state.pronosticosMeta[person] || { items: {} };
@@ -1841,7 +2051,7 @@ function renderPersonDetail({ resetScroll = false } = {}) {
   const aciertos = podioEntry ? podioEntry.aciertos : 0;
   const jugados = podioEntry ? podioEntry.jugados : 0;
 
-  document.getElementById('personSummary').innerHTML = `
+  summaryEl.innerHTML = `
     <div class="summary-stat"><span class="summary-value">${puntos}</span><span class="summary-label">Puntos</span></div>
     <div class="summary-stat"><span class="summary-value">${rank}º</span><span class="summary-label">Posición</span></div>
     <div class="summary-stat"><span class="summary-value">${aciertos}<small>/${jugados}</small></span><span class="summary-label">Aciertos</span></div>
@@ -1861,9 +2071,9 @@ function renderPersonDetail({ resetScroll = false } = {}) {
       return key === state.selectedDay;
     })
     : state.partidos;
-  document.getElementById('personContent').innerHTML = renderMatchesFlat(dayMatches, ctx);
+  contentEl.innerHTML = renderMatchesFlat(dayMatches, ctx);
 
-  attachEditingListeners(document.getElementById('personContent'));
+  attachEditingListeners(contentEl);
   updateJumpButton();
 
   if (resetScroll) {
@@ -1889,7 +2099,6 @@ function getCurrentMatchId() {
 
 function activeJumpView() {
   if (document.getElementById('viewAdmin')?.classList.contains('active')) return 'admin';
-  if (document.getElementById('viewQuiniela')?.classList.contains('active')) return 'quiniela';
   return null;
 }
 
@@ -1993,13 +2202,14 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const isPlayed = matchFinalized(m);
   const isLive = matchLive(m);
   const isHalftime = matchHalftime(m);
-  const canSeePrediction = isOwn || sharesPredictions !== false || isLive || isPlayed;
+  const canSeePrediction = canViewPredictionForMatch(m, { isOwn, sharesPredictions });
   const saved = savedItems[String(m.id)];
   const pr = predMap[m.id];
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+  const teamsResolved = knockoutTeamsResolved(m);
 
   // Editable: es tu propia quiniela, partido no jugado, sin pronóstico guardado y antes del kickoff
-  if (isOwn && !isPlayed && !saved && !matchStarted(m)) {
+  if (isOwn && !isPlayed && !saved && !matchStarted(m) && teamsResolved) {
     return `
       <div class="match-card form-card editable-card" data-match-id="${m.id}">
         ${matchDatetimeHTML(m)}
@@ -2024,11 +2234,27 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const hasPred = canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const hasPrivatePred = !canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const hasRealScore = matchHasScore(m);
-  const pts = isPlayed && hasPred ? calcPoints(pr.golesLocal, pr.golesVisitante, m.golesLocal, m.golesVisitante) : 0;
+  const pts = isPlayed && hasPred ? calcPoints(
+    pr.golesLocal,
+    pr.golesVisitante,
+    m.golesLocal,
+    m.golesVisitante,
+    pr.ganador,
+    inferredWinner(m),
+    isKnockoutMatch(m),
+    m.local,
+    m.visitante
+  ) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
   const realL = hasRealScore ? m.golesLocal : '–';
   const realV = hasRealScore ? m.golesVisitante : '–';
+  const predWinnerChip = hasPred && isKnockoutMatch(m) && matchTied(pr.golesLocal, pr.golesVisitante)
+    ? winnerChipHTML('Pasa', pr.ganador, pr.definicion || 'te')
+    : '';
+  const realWinnerChip = hasRealScore && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante)
+    ? winnerChipHTML('Pasó', inferredWinner(m), m.definicion)
+    : '';
   let stateClass = 'state-pending';
   if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
   else if (isHalftime) stateClass = 'state-halftime';
@@ -2044,6 +2270,8 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
     ptsHTML = `<span class="match-points pts-live"><span class="live-ball">⚽</span> ${displayLiveMinute(m)}</span>`;
   } else if (saved) {
     ptsHTML = `<span class="match-points pts-saved">Guardado</span>`;
+  } else if (!teamsResolved) {
+    ptsHTML = `<span class="match-points pts-waiting">Llave por definir</span>`;
   } else {
     ptsHTML = `<span class="match-points pts-pending">Por jugar</span>`;
   }
@@ -2061,13 +2289,16 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
           <span class="score-num ${hasPred ? '' : 'empty'}">${predL}</span>
           <span class="score-row-label">Pronóstico</span>
           <span class="score-num ${hasPred ? '' : 'empty'}">${predV}</span>
+          ${predWinnerChip}
         </div>
         <div class="score-row real">
           <span class="score-num ${hasRealScore ? '' : 'empty'}">${realL}</span>
           <span class="score-row-label">Resultado</span>
           <span class="score-num ${hasRealScore ? '' : 'empty'}">${realV}</span>
+          ${realWinnerChip}
         </div>
-      </div>`}
+      </div>
+      `}
       <div class="match-footer">${ptsHTML}</div>
     </div>`;
 }
@@ -2076,26 +2307,34 @@ function renderMatchesFlat(partidos, ctx) {
   return partidos.map(m => buildMatchCard(m, ctx)).join('');
 }
 
+function canViewPredictionForMatch(match, { isOwn, sharesPredictions }) {
+  if (isOwn || sharesPredictions !== false) return true;
+  return matchLive(match) || matchHalftime(match) || matchFinalized(match);
+}
+
 function knockoutRoundTitle(roundKey) {
   return KNOCKOUT_ROUNDS.find(r => r.key === roundKey)?.title || 'Fase final';
 }
 
 function normalizeKnockoutMatch(base, overrides = {}) {
+  const date = base.fecha || (base.date && base.timeET ? etToDate(base.date, base.timeET) : null);
   return {
-    docId: `ko-${base.id}`,
+    docId: base.docId || `ko-${base.id}`,
     id: base.id,
     local: overrides.local || base.local || `🏳️ Ganador ${base.sourceA || ''}`.trim(),
     visitante: overrides.visitante || base.visitante || `🏳️ Ganador ${base.sourceB || ''}`.trim(),
-    golesLocal: overrides.golesLocal ?? null,
-    golesVisitante: overrides.golesVisitante ?? null,
-    estado: overrides.estado || null,
-    faseEnVivo: null,
-    fecha: etToDate(base.date, base.timeET),
+    golesLocal: overrides.golesLocal ?? base.golesLocal ?? null,
+    golesVisitante: overrides.golesVisitante ?? base.golesVisitante ?? null,
+    estado: overrides.estado || base.estado || null,
+    faseEnVivo: overrides.faseEnVivo ?? base.faseEnVivo ?? null,
+    fecha: date,
     round: base.round,
     roundOrder: base.roundOrder,
     roundTitle: knockoutRoundTitle(base.round),
     sourceA: base.sourceA,
     sourceB: base.sourceB,
+    ganador: overrides.ganador ?? base.ganador ?? null,
+    definicion: overrides.definicion ?? base.definicion ?? null,
   };
 }
 
@@ -2103,9 +2342,27 @@ function baseKnockoutMatches() {
   return KNOCKOUT_BASE_MATCHES.map(m => normalizeKnockoutMatch(m));
 }
 
+function applyKnockoutVisualLayout(match) {
+  const layout = KNOCKOUT_VISUAL_LAYOUT[match.id];
+  return layout ? { ...match, ...layout } : match;
+}
+
+function knockoutMatchesSource() {
+  const fromFirestore = state.partidos.filter(isKnockoutMatch);
+  return (fromFirestore.length ? fromFirestore : baseKnockoutMatches()).map(applyKnockoutVisualLayout);
+}
+
 function findAnyMatch(matchId) {
-  return state.partidos.find(x => x.id === matchId)
-    || baseKnockoutMatches().find(x => x.id === matchId)
+  const id = Number(matchId);
+  if (id >= KNOCKOUT_ID_START) {
+    return findResolvedKnockoutMatch(id)
+      || state.partidos.find(x => x.id === id)
+      || knockoutMatchesSource().find(x => x.id === id)
+      || null;
+  }
+
+  return state.partidos.find(x => x.id === id)
+    || knockoutMatchesSource().find(x => x.id === id)
     || null;
 }
 
@@ -2114,31 +2371,54 @@ function winnerFromScore(local, visitante, gl, gv) {
   return gl > gv ? local : visitante;
 }
 
+function winnerDefinitionText(definicion) {
+  if (definicion === 'penales') return 'Penales';
+  if (definicion === 'te') return 'TE';
+  return null;
+}
+
+function winnerChipHTML(prefix, winner, definicion) {
+  const selected = normalizedWinner(winner);
+  if (!selected) return '';
+  const { flag, name } = splitFlag(selected);
+  const suffix = winnerDefinitionText(definicion);
+  return `
+    <div class="winner-chip">
+      ${prefix} ${flag ? `<span class="winner-chip-flag">${flag}</span>` : ''}<span>${name || selected}</span>${suffix ? ` <span>en ${suffix}</span>` : ''}
+    </div>`;
+}
+
 function knockoutResolvedMatches(predMap = {}) {
   const resolved = new Map();
-  for (const base of KNOCKOUT_BASE_MATCHES) {
+  const sourceMatches = knockoutMatchesSource();
+  for (const base of sourceMatches) {
     const sourceHome = base.sourceA ? resolved.get(base.sourceA) : null;
     const sourceAway = base.sourceB ? resolved.get(base.sourceB) : null;
     const pr = predMap[base.id];
-    const local = sourceHome?.winner || base.local || `🏳️ Ganador ${base.sourceA}`;
-    const visitante = sourceAway?.winner || base.visitante || `🏳️ Ganador ${base.sourceB}`;
+    const local = sourceHome?.winner || base.local || `🏳️ Ganador Partido ${base.sourceA}`;
+    const visitante = sourceAway?.winner || base.visitante || `🏳️ Ganador Partido ${base.sourceB}`;
     const match = normalizeKnockoutMatch(base, { local, visitante });
-    const predictedWinner = pr
+    const predictedWinner = pr?.ganador || (pr
       ? winnerFromScore(local, visitante, pr.golesLocal, pr.golesVisitante)
-      : null;
+      : null);
+    const actualWinner = matchFinalized(match) ? inferredWinner(match) : null;
+    const winner = actualWinner || null;
     match.predictedWinner = predictedWinner;
-    match.eliminatedTeam = predictedWinner
-      ? (predictedWinner === local ? visitante : local)
-      : null;
-    resolved.set(base.id, { ...match, winner: predictedWinner || null });
+    match.actualWinner = actualWinner;
+    resolved.set(base.id, { ...match, winner });
   }
-  return KNOCKOUT_BASE_MATCHES.map(base => resolved.get(base.id));
+  return sourceMatches.map(base => resolved.get(base.id));
+}
+
+function findResolvedKnockoutMatch(matchId) {
+  const id = Number(matchId);
+  return knockoutResolvedMatches().find(m => m?.id === id) || null;
 }
 
 function championInfo(knockoutMatches) {
-  const final = knockoutMatches.find(m => m.id === KNOCKOUT_ID_START + 30);
-  const champion = final?.predictedWinner || 'Campeón por definir';
-  const quinielaWinner = state.podio[0]?.nombre || 'Líder por definir';
+  const final = knockoutMatches.find(m => m.id === 103);
+  const champion = final?.winner || 'Campeón por definir';
+  const quinielaWinner = '-';
   return { champion, quinielaWinner };
 }
 
@@ -2163,8 +2443,8 @@ function buildChampionHeader(knockoutMatches) {
 }
 
 function buildWorldCupStage(knockoutMatches) {
-  const finalMatch = knockoutMatches.find(m => m.id === KNOCKOUT_ID_START + 30);
-  const hasWinner = !!finalMatch?.predictedWinner;
+  const finalMatch = knockoutMatches.find(m => m.id === 103);
+  const hasWinner = !!finalMatch?.winner;
   return `
     <div class="finales-cup-stage">
       ${buildChampionHeader(knockoutMatches)}
@@ -2178,15 +2458,9 @@ function buildWorldCupStage(knockoutMatches) {
 }
 
 function knockoutCardWrap(match, ctx) {
-  const eliminated = match.eliminatedTeam ? splitFlag(match.eliminatedTeam) : null;
   return `
     <div class="bracket-match" data-match-id="${match.id}" style="--match-top: ${knockoutTop(match)}px;">
       ${buildMatchCard(match, ctx)}
-      ${eliminated ? `
-        <div class="bracket-eliminated">
-          <span>${eliminated.flag || '🏳️'}</span>
-          <span>${eliminated.name || match.eliminatedTeam}</span>
-        </div>` : ''}
     </div>`;
 }
 
@@ -2213,7 +2487,9 @@ function knockoutPoint(match, side) {
 }
 
 function connectorPath(fromMatch, toMatch) {
-  const fromLeftSide = knockoutColumnIndex(fromMatch.round) < knockoutColumnIndex(toMatch.round);
+  const fromCol = knockoutColumnIndex(fromMatch.round);
+  const toCol = knockoutColumnIndex(toMatch.round);
+  const fromLeftSide = fromCol < toCol;
   const start = knockoutPoint(fromMatch, fromLeftSide ? 'right' : 'left');
   const end = knockoutPoint(toMatch, fromLeftSide ? 'left' : 'right');
   const middle = fromLeftSide
@@ -2236,6 +2512,43 @@ function buildKnockoutConnectors(knockoutMatches) {
     <svg class="bracket-connectors" viewBox="0 0 ${knockoutBoardInnerWidth()} ${knockoutBoardInnerHeight()}" aria-hidden="true">
       ${paths.map(d => `<path d="${d}"></path>`).join('')}
     </svg>`;
+}
+
+function todayKeyCDMX() {
+  return cdmxDateKey(new Date(nowMs()));
+}
+
+function renderFinalesList(knockoutMatches, ctx) {
+  const todayKey = todayKeyCDMX();
+  const todayMatches = knockoutMatches
+    .filter(m => m.fecha && cdmxDateKey(m.fecha) === todayKey)
+    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+  const label = todayMatches[0]?.fecha
+    ? formatDayHeaderCDMX(todayMatches[0].fecha)
+    : formatDayHeaderCDMX(new Date(nowMs()));
+
+  if (!todayMatches.length) {
+    return `
+      <div class="finales-list">
+        <div class="day-group">
+          <h3 class="day-header">${label}</h3>
+          <div class="finales-empty-list">
+            <strong>No hay partidos hoy</strong>
+            <span>Cambia a Llave para ver toda la fase final.</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  return `
+    <div class="finales-list">
+      <div class="day-group">
+        <h3 class="day-header">${label}</h3>
+        <div class="day-matches">
+          ${renderMatchesFlat(todayMatches, ctx)}
+        </div>
+      </div>
+    </div>`;
 }
 
 function knockoutBoardInnerWidth() {
@@ -2306,6 +2619,7 @@ function setFinalesZoom(nextZoom, origin = null) {
 function renderFinales() {
   const board = document.getElementById('finalesBoard');
   if (!board) return;
+  const viewport = document.getElementById('finalesViewport');
   const person = state.selectedPerson || state.session?.clave;
   const isOwn = !!(state.session && state.session.clave === person);
   const meta = state.pronosticosMeta[person] || { items: {} };
@@ -2315,8 +2629,25 @@ function renderFinales() {
   const predMap = {};
   preds.forEach(pr => { predMap[pr.id] = pr; });
 
-  const knockoutMatches = knockoutResolvedMatches(predMap);
+  const bracketPredMap = (isOwn || sharesPredictions !== false) ? predMap : {};
+  const knockoutMatches = knockoutResolvedMatches(bracketPredMap)
+    .filter(m => KNOCKOUT_ROUNDS.some(r => r.key === m.round));
   const ctx = { isOwn, savedItems, predMap, sharesPredictions };
+
+  document.querySelectorAll('.finales-mode-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.finalesMode === state.finalesMode);
+  });
+  document.querySelector('.finales-controls')?.toggleAttribute('hidden', state.finalesMode !== 'bracket');
+  viewport?.classList.toggle('is-list-mode', state.finalesMode === 'list');
+  board.classList.toggle('is-list-mode', state.finalesMode === 'list');
+
+  if (state.finalesMode === 'list') {
+    board.innerHTML = renderFinalesList(knockoutMatches, ctx);
+    attachEditingListeners(board);
+    updateFinalesNavButtons();
+    return;
+  }
+
   const columns = KNOCKOUT_ROUNDS.map(round => {
     const matches = knockoutMatches
       .filter(m => m.round === round.key)
@@ -2348,31 +2679,51 @@ function renderFinales() {
   applyFinalesZoom();
   initFinalesGestures();
   attachEditingListeners(document.getElementById('finalesBoard'));
+  updateFinalesNavButtons();
 }
 
 function focusFinalesMatch(matchId) {
   const viewport = document.getElementById('finalesViewport');
-  const match = baseKnockoutMatches().find(m => m.id === matchId);
+  const match = knockoutMatchesSource().find(m => m.id === matchId);
   if (!viewport || !match) return;
+  state.focusedFinalesMatchId = match.id;
+  updateFinalesNavButtons();
 
   state.knockoutZoom = clampFinalesZoom(KNOCKOUT_FOCUS_ZOOM);
   applyFinalesZoom();
 
-  const col = knockoutColumnIndex(match.round);
-  const cardCenterX = KNOCKOUT_BOARD_PADDING_X
-    + col * (KNOCKOUT_CARD_WIDTH + KNOCKOUT_COL_GAP)
-    + KNOCKOUT_CARD_WIDTH / 2;
-  const cardCenterY = KNOCKOUT_BOARD_PADDING_TOP + knockoutTop(match) + KNOCKOUT_CARD_MID;
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#finalesBoard .bracket-match[data-match-id="${matchId}"] .match-card`);
+    if (!card) return;
+    const tabs = document.getElementById('finalesPersonTabs');
+    const nav = document.getElementById('bottomNav');
+    const cardRect = card.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const visibleTop = Math.max(viewportRect.top, tabs?.getBoundingClientRect().bottom || viewportRect.top);
+    const visibleBottom = Math.min(
+      viewportRect.bottom,
+      nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : viewportRect.bottom
+    );
+    const visibleCenterY = visibleTop + (visibleBottom - visibleTop) / 2;
+    const deltaX = (cardRect.left + cardRect.width / 2) - (viewportRect.left + viewportRect.width / 2);
+    const deltaY = (cardRect.top + cardRect.height / 2) - visibleCenterY;
 
-  viewport.scrollTo({
-    left: Math.max(0, cardCenterX * state.knockoutZoom - viewport.clientWidth / 2),
-    top: Math.max(0, cardCenterY * state.knockoutZoom - viewport.clientHeight / 2),
-    behavior: 'smooth',
+    viewport.scrollTo({
+      left: Math.max(0, viewport.scrollLeft + deltaX),
+      top: Math.max(0, viewport.scrollTop + deltaY),
+      behavior: 'smooth',
+    });
   });
 }
 
+function orderedFinalesMatches() {
+  return knockoutMatchesSource()
+    .filter(m => KNOCKOUT_ROUNDS.some(r => r.key === m.round))
+    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+}
+
 function getFinalesJumpTargetMatch() {
-  const ordered = baseKnockoutMatches().sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+  const ordered = orderedFinalesMatches();
   const liveTarget = ordered.find(m => !matchFinalized(m) && (matchLive(m) || matchHalftime(m)));
   if (liveTarget) return liveTarget;
   return ordered.find(m => !matchFinalized(m) && !matchHasScore(m))
@@ -2380,7 +2731,66 @@ function getFinalesJumpTargetMatch() {
     || null;
 }
 
-function focusNextFinalesMatch() {
+function currentFinalesIndex() {
+  const ordered = orderedFinalesMatches();
+  if (!ordered.length) return { ordered, index: -1 };
+  const focusedId = state.focusedFinalesMatchId;
+  let index = focusedId == null ? -1 : ordered.findIndex(m => m.id === focusedId);
+  if (index === -1) {
+    const target = getFinalesJumpTargetMatch();
+    index = target ? ordered.findIndex(m => m.id === target.id) : 0;
+  }
+  return { ordered, index };
+}
+
+function updateFinalesNavButtons() {
+  const prev = document.getElementById('btnFinalesPrev');
+  const next = document.getElementById('btnFinalesNext');
+  const current = document.getElementById('btnFinalesCurrent');
+  if (!prev || !next || !current) return;
+  if (state.finalesMode !== 'bracket') {
+    prev.disabled = true;
+    next.disabled = true;
+    current.disabled = true;
+    return;
+  }
+  const { ordered, index } = currentFinalesIndex();
+  prev.disabled = !ordered.length || index <= 0;
+  next.disabled = !ordered.length || index < 0 || index >= ordered.length - 1;
+  current.disabled = !getFinalesJumpTargetMatch();
+}
+
+function setFinalesMode(mode) {
+  const nextMode = mode === 'list' ? 'list' : 'bracket';
+  if (state.finalesMode === nextMode) return;
+  if (state.editingMatchId !== null) {
+    const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de modo?');
+    if (!ok) return;
+    state.editingMatchId = null;
+    state.pendingSave = null;
+  }
+  state.finalesMode = nextMode;
+  renderFinales();
+}
+
+function focusFinalesRelative(step) {
+  if (state.finalesMode !== 'bracket') return;
+  if (state.focusedFinalesMatchId == null) {
+    const target = getFinalesJumpTargetMatch();
+    if (!target) return;
+    focusFinalesMatch(target.id);
+    return;
+  }
+  const { ordered, index } = currentFinalesIndex();
+  if (!ordered.length) return;
+  const nextIndex = Math.max(0, Math.min(ordered.length - 1, index + step));
+  const target = ordered[nextIndex];
+  if (!target) return;
+  focusFinalesMatch(target.id);
+}
+
+function focusCurrentFinalesMatch() {
+  if (state.finalesMode !== 'bracket') return;
   const target = getFinalesJumpTargetMatch();
   if (!target) return;
   focusFinalesMatch(target.id);
@@ -2413,6 +2823,7 @@ function initFinalesGestures() {
   };
 
   viewport.addEventListener('wheel', e => {
+    if (state.finalesMode !== 'bracket') return;
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault();
     const factor = Math.exp(-e.deltaY * KNOCKOUT_WHEEL_ZOOM_SPEED);
@@ -2420,6 +2831,7 @@ function initFinalesGestures() {
   }, { passive: false });
 
   viewport.addEventListener('pointerdown', e => {
+    if (state.finalesMode !== 'bracket') return;
     if (e.target.closest('input, button, textarea, select')) return;
     pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
     viewport.setPointerCapture?.(e.pointerId);
@@ -2439,6 +2851,7 @@ function initFinalesGestures() {
   });
 
   viewport.addEventListener('pointermove', e => {
+    if (state.finalesMode !== 'bracket') return;
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
@@ -2489,7 +2902,7 @@ function initFinalesGestures() {
   }, true);
 
   window.addEventListener('resize', () => {
-    if (state.activeView !== 'finales') return;
+    if (state.activeView !== 'finales' || state.finalesMode !== 'bracket') return;
     const next = clampFinalesZoom(state.knockoutZoom);
     if (next !== state.knockoutZoom) state.knockoutZoom = next;
     applyFinalesZoom();
@@ -2502,6 +2915,10 @@ function initFinalesGestures() {
 function attachEditingListeners(root = document) {
   root.querySelectorAll('.editable-card').forEach(card => {
     const id = Number(card.dataset.matchId);
+    card.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      enterEditMode(id);
+    });
     card.querySelectorAll('input').forEach(inp => {
       inp.addEventListener('focus', () => enterEditMode(id));
     });
@@ -2558,17 +2975,32 @@ function openConfirm(matchId) {
   }
 
   const m = findAnyMatch(matchId);
-  state.pendingSave = { matchId, gl, gv };
+  if (!knockoutTeamsResolved(m)) {
+    showToast('Esta llave todavía no está cerrada. Podrás pronosticar cuando ambos equipos estén definidos.', true);
+    return;
+  }
+  const needsWinner = isKnockoutMatch(m) && matchTied(gl, gv);
+  state.pendingSave = {
+    matchId,
+    gl,
+    gv,
+    ganador: needsWinner ? null : winnerFromScore(m.local, m.visitante, gl, gv),
+    definicion: needsWinner ? 'te' : null,
+  };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Confirmar pronóstico';
-  if (warnEl) warnEl.textContent = 'Una vez guardado, no podrás editar este pronóstico.';
+  if (warnEl) warnEl.textContent = needsWinner
+    ? 'Elige quién avanza y si será en tiempo extra o penales. Una vez guardado, no podrás editar este pronóstico.'
+    : 'Una vez guardado, no podrás editar este pronóstico.';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
       <span class="modal-team">${m.local}</span>
       <span class="modal-score">${gl} - ${gv}</span>
       <span class="modal-team">${m.visitante}</span>
-    </div>`;
+    </div>
+    ${needsWinner ? `${definitionChoiceHTML('te', 'prediction-definition')}${winnerChoiceHTML(m, null, 'prediction-winner')}` : ''}`;
+  attachWinnerChoiceListeners(document.getElementById('modalBody'));
   document.getElementById('confirmModal').hidden = false;
 }
 
@@ -2580,12 +3012,21 @@ function closeModal() {
 async function handleModalConfirm() {
   if (state.adminPendingSave) return handleAdminModalConfirm();
   if (!state.pendingSave) return;
-  const { matchId, gl, gv } = state.pendingSave;
+  const { matchId, gl, gv, ganador, definicion } = state.pendingSave;
   const btn = document.getElementById('modalConfirm');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    await saveSingleMatch(matchId, gl, gv);
+    const m = findAnyMatch(matchId);
+    if (isKnockoutMatch(m) && matchTied(gl, gv) && !ganador) {
+      showToast('Elige quién avanza.', true);
+      return;
+    }
+    if (isKnockoutMatch(m) && matchTied(gl, gv) && !definicion) {
+      showToast('Elige si será en tiempo extra o penales.', true);
+      return;
+    }
+    await saveSingleMatch(matchId, gl, gv, ganador, definicion);
     state.editingMatchId = null;
     state.pendingSave = null;
     closeModal();
@@ -2647,7 +3088,7 @@ function renderAll() {
   renderPodio();
   renderDayTabs();
   renderPersonTabs();
-  if (state.editingMatchId === null) renderPersonDetail();
+  if (state.activeView !== 'quiniela' && state.editingMatchId === null) renderPersonDetail();
   if (state.activeView === 'grupos') renderGrupos();
   if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
   updateHeaderSession();
@@ -2801,10 +3242,7 @@ function switchView(viewKey) {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById(views[target]).classList.add('active');
   if (target === 'quiniela') {
-    renderDayTabs();
-    renderPersonDetail();
     stopGruposPolling();
-    syncLiveScoresFromClient({ force: true, silent: true }).catch(handleClientLiveSyncError);
   } else if (knockoutEnabled() && target === 'finales') {
     renderFinales();
     stopGruposPolling();
@@ -2865,7 +3303,7 @@ async function handleLogin(e) {
     } else {
       state.selectedPerson = state.session.clave;
       subscribeFirestore();
-      switchView('quiniela');
+      switchView(knockoutEnabled() ? 'finales' : 'quiniela');
       setStatus('Conectando...', 'loading');
     }
   } catch (err) {
@@ -2959,7 +3397,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('sharePredictionsToggle').addEventListener('change', handleShareToggleChange);
   document.getElementById('btnJumpCurrent').addEventListener('click', scrollToCurrentMatch);
   document.getElementById('btnLiveSyncNow')?.addEventListener('click', handleLiveSyncNow);
-  document.getElementById('btnFinalesNext')?.addEventListener('click', focusNextFinalesMatch);
+  document.getElementById('btnFinalesPrev')?.addEventListener('click', () => focusFinalesRelative(-1));
+  document.getElementById('btnFinalesCurrent')?.addEventListener('click', focusCurrentFinalesMatch);
+  document.getElementById('btnFinalesNext')?.addEventListener('click', () => focusFinalesRelative(1));
+  document.getElementById('btnFinalesBracketMode')?.addEventListener('click', () => setFinalesMode('bracket'));
+  document.getElementById('btnFinalesListMode')?.addEventListener('click', () => setFinalesMode('list'));
 
   let jumpTick = false;
   const onScrollOrResize = () => {
