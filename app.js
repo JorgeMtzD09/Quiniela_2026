@@ -1392,7 +1392,7 @@ async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, def
     update.defL = null;
     update.defV = null;
     if (gl !== null && gv !== null && matchTied(gl, gv) && definicion) {
-      const validatedDefinition = validateDefinitionScore(defL, defV, m, update.ganador);
+      const validatedDefinition = validateDefinitionScore(defL, defV, m, update.ganador, definicion, gl, gv);
       if (validatedDefinition.error) throw new Error(validatedDefinition.error);
       update.ganador = validatedDefinition.ganador;
       update.defL = validatedDefinition.defL;
@@ -1525,12 +1525,20 @@ function validateScoreInputs(lRaw, vRaw) {
   return { gl, gv };
 }
 
-function validateDefinitionScore(defL, defV, m, ganador = null) {
+function validateDefinitionScore(defL, defV, m, ganador = null, definicion = null, regularL = null, regularV = null) {
   if (!Number.isInteger(defL) || !Number.isInteger(defV) || defL < 0 || defV < 0 || defL > 20 || defV > 20) {
     return { error: 'Escribe el marcador de la definición con números entre 0 y 20.' };
   }
   if (defL === defV) {
     return { error: 'El marcador de la definición no puede quedar empatado.' };
+  }
+  if (definicion === 'te') {
+    if (!Number.isInteger(regularL) || !Number.isInteger(regularV)) {
+      return { error: 'Escribe primero el marcador regular.' };
+    }
+    if (defL < regularL || defV < regularV) {
+      return { error: 'En tiempo extra, el marcador final no puede ser menor que el marcador regular.' };
+    }
   }
   const winnerByDefinition = winnerFromScore(m.local, m.visitante, defL, defV);
   if (ganador && normalizedWinner(ganador) !== normalizedWinner(winnerByDefinition)) {
@@ -1817,7 +1825,7 @@ async function handleAdminModalConfirm() {
       return;
     }
     if (!reset && isKnockoutMatch(match) && matchTied(gl, gv)) {
-      const validatedDefinition = validateDefinitionScore(pending.defL, pending.defV, match);
+      const validatedDefinition = validateDefinitionScore(pending.defL, pending.defV, match, null, pending.definicion, gl, gv);
       if (validatedDefinition.error) {
         showToast(validatedDefinition.error, true);
         return;
@@ -2068,7 +2076,7 @@ async function saveAdminPrediction(matchId) {
     if (matchTied(validated.gl, validated.gv)) {
       const definition = card.querySelector('.definition-choice-btn.active')?.dataset.definition || 'te';
       const { defL, defV } = readDefinitionScoreFromCard(card);
-      const validatedDefinition = validateDefinitionScore(defL, defV, match);
+      const validatedDefinition = validateDefinitionScore(defL, defV, match, null, definition, validated.gl, validated.gv);
       if (validatedDefinition.error) {
         showToast(validatedDefinition.error, true);
         return;
@@ -2151,7 +2159,7 @@ async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = nul
     const winner = normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
     if (winner) item.ganador = winner;
     if (matchTied(gl, gv) && definicion) {
-      const validatedDefinition = validateDefinitionScore(defL, defV, m, winner);
+      const validatedDefinition = validateDefinitionScore(defL, defV, m, winner, definicion, gl, gv);
       if (validatedDefinition.error) throw new Error(validatedDefinition.error);
       item.definicion = definicion;
       item.defL = validatedDefinition.defL;
@@ -3448,7 +3456,7 @@ async function handleModalConfirm() {
     }
     let winnerToSave = ganador;
     if (isKnockoutMatch(m) && matchTied(gl, gv)) {
-      const validatedDefinition = validateDefinitionScore(defL, defV, m);
+      const validatedDefinition = validateDefinitionScore(defL, defV, m, null, definicion, gl, gv);
       if (validatedDefinition.error) {
         showToast(validatedDefinition.error, true);
         return;
