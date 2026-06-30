@@ -39,7 +39,9 @@ service cloud.firestore {
                'apiFootballFixtureId',
                'lastLiveSync',
                'ganador',
-               'definicion'
+               'definicion',
+               'defL',
+               'defV'
              ])
         && (
           !request.resource.data.keys().hasAny(['estado']) ||
@@ -54,6 +56,16 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['ganador']) ||
           request.resource.data.ganador == null ||
           request.resource.data.ganador is string
+        )
+        && (
+          !request.resource.data.keys().hasAny(['defL']) ||
+          request.resource.data.defL == null ||
+          request.resource.data.defL is number
+        )
+        && (
+          !request.resource.data.keys().hasAny(['defV']) ||
+          request.resource.data.defV == null ||
+          request.resource.data.defV is number
         );
       allow create, delete: if false;
     }

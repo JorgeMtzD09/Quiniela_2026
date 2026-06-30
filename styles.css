@@ -985,6 +985,29 @@ body.intro-playing {
   line-height: 1;
 }
 
+.winner-chip.has-definition-score {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  min-width: min(100%, 235px);
+}
+
+.winner-chip-text {
+  min-width: 0;
+}
+
+.winner-chip-score {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(20, 18, 31, 0.1);
+  color: #14121f;
+  font-size: 0.82rem;
+  font-weight: 950;
+  line-height: 1.15;
+  text-align: center;
+}
+
 .score-num {
   font-size: 1.7rem;
   font-weight: 800;
@@ -1244,6 +1267,8 @@ body.intro-playing {
   padding: 22px 20px;
   width: 100%;
   max-width: 360px;
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
   box-shadow: var(--shadow-md);
 }
 
@@ -1284,7 +1309,8 @@ body.intro-playing {
 }
 
 .winner-choice,
-.definition-choice {
+.definition-choice,
+.definition-score {
   margin-top: 16px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -1310,6 +1336,42 @@ body.intro-playing {
 
 .winner-choice-options.two-cols {
   grid-template-columns: 1fr 1fr;
+}
+
+.definition-score-teams {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.definition-score-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.definition-score-input {
+  width: 100%;
+  min-height: 44px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.definition-score-input:focus {
+  outline: none;
+  border-color: var(--wc-blue);
+  box-shadow: 0 0 0 3px rgba(30, 111, 217, 0.14);
 }
 
 .winner-choice-btn,

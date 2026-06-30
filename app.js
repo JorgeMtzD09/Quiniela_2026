@@ -1100,6 +1100,8 @@ function pronosticosFromFirestore(docs, partidos) {
         golesVisitante: item && item.v != null ? Number(item.v) : null,
         ganador: item && item.ganador ? String(item.ganador) : null,
         definicion: item && item.definicion ? String(item.definicion) : null,
+        definicionLocal: item && item.defL != null ? Number(item.defL) : null,
+        definicionVisitante: item && item.defV != null ? Number(item.defV) : null,
       };
     });
   });
@@ -1286,6 +1288,8 @@ function parsePartidoDoc(d) {
     sourceB: m.sourceB != null ? Number(m.sourceB) : null,
     ganador: normalizedWinner(m.ganador),
     definicion: m.definicion || null,
+    definicionLocal: m.defL != null ? Number(m.defL) : null,
+    definicionVisitante: m.defV != null ? Number(m.defV) : null,
   };
 }
 
@@ -1306,7 +1310,7 @@ function subscribeAdmin() {
   );
 }
 
-async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, definicion = null) {
+async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, definicion = null, defL = null, defV = null) {
   if (!isAdminSession()) throw new Error('Sin permisos de admin');
   if (!db) throw new Error('Sin conexión');
 
@@ -1338,6 +1342,15 @@ async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, def
   if (isKnockoutMatch(m)) {
     update.ganador = gl === null || gv === null ? null : normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
     update.definicion = definicion || null;
+    update.defL = null;
+    update.defV = null;
+    if (gl !== null && gv !== null && matchTied(gl, gv) && definicion) {
+      const validatedDefinition = validateDefinitionScore(defL, defV, m, update.ganador);
+      if (validatedDefinition.error) throw new Error(validatedDefinition.error);
+      update.ganador = validatedDefinition.ganador;
+      update.defL = validatedDefinition.defL;
+      update.defV = validatedDefinition.defV;
+    }
   }
 
   await updateDoc(doc(db, 'partidos', docId), update);
@@ -1387,7 +1400,7 @@ function buildAdminMatchCard(m) {
       ? 'Definición en tiempo extra'
       : '';
   const definitionHTML = definitionLabel
-    ? `<div class="match-definition admin-definition">${definitionLabel}</div>`
+    ? `<div class="match-definition admin-definition">${definitionLabel}${Number.isInteger(m.definicionLocal) && Number.isInteger(m.definicionVisitante) ? ` · ${m.definicionLocal} - ${m.definicionVisitante}` : ''}</div>`
     : '';
   // Mostrar siempre los controles de estado para el admin
   const livePhaseHTML = `
@@ -1465,6 +1478,20 @@ function validateScoreInputs(lRaw, vRaw) {
   return { gl, gv };
 }
 
+function validateDefinitionScore(defL, defV, m, ganador = null) {
+  if (!Number.isInteger(defL) || !Number.isInteger(defV) || defL < 0 || defV < 0 || defL > 20 || defV > 20) {
+    return { error: 'Escribe el marcador de la definición con números entre 0 y 20.' };
+  }
+  if (defL === defV) {
+    return { error: 'El marcador de la definición no puede quedar empatado.' };
+  }
+  const winnerByDefinition = winnerFromScore(m.local, m.visitante, defL, defV);
+  if (ganador && normalizedWinner(ganador) !== normalizedWinner(winnerByDefinition)) {
+    return { error: 'El marcador de la definición debe coincidir con el equipo que avanza.' };
+  }
+  return { defL, defV, ganador: winnerByDefinition };
+}
+
 function definitionChoiceHTML(selectedDefinition = 'te', fieldName = 'definition') {
   const selected = selectedDefinition || 'te';
   return `
@@ -1473,6 +1500,22 @@ function definitionChoiceHTML(selectedDefinition = 'te', fieldName = 'definition
       <div class="winner-choice-options two-cols">
         <button type="button" class="definition-choice-btn${selected === 'te' ? ' active' : ''}" data-definition="te">Tiempo extra</button>
         <button type="button" class="definition-choice-btn${selected === 'penales' ? ' active' : ''}" data-definition="penales">Penales</button>
+      </div>
+    </div>`;
+}
+
+function definitionScoreHTML(m, scoreLocal = '', scoreVisitante = '') {
+  return `
+    <div class="definition-score">
+      <div class="winner-choice-label">Marcador de la definición</div>
+      <div class="definition-score-teams">
+        <span>${m.local}</span>
+        <span>${m.visitante}</span>
+      </div>
+      <div class="definition-score-row">
+        <input class="definition-score-input" type="number" min="0" max="20" step="1" inputmode="numeric" name="def_l" placeholder="-" value="${scoreLocal}">
+        <span class="form-score-sep">—</span>
+        <input class="definition-score-input" type="number" min="0" max="20" step="1" inputmode="numeric" name="def_v" placeholder="-" value="${scoreVisitante}">
       </div>
     </div>`;
 }
@@ -1514,6 +1557,24 @@ function attachWinnerChoiceListeners(root = document) {
       });
     });
   });
+  root.querySelectorAll('.definition-score-input').forEach(input => {
+    input.addEventListener('input', () => {
+      const wrap = input.closest('.definition-score');
+      if (!wrap) return;
+      const lRaw = wrap.querySelector('input[name="def_l"]')?.value ?? '';
+      const vRaw = wrap.querySelector('input[name="def_v"]')?.value ?? '';
+      const defL = lRaw === '' ? null : Number(lRaw);
+      const defV = vRaw === '' ? null : Number(vRaw);
+      if (state.pendingSave) {
+        state.pendingSave.defL = Number.isInteger(defL) ? defL : null;
+        state.pendingSave.defV = Number.isInteger(defV) ? defV : null;
+      }
+      if (state.adminPendingSave) {
+        state.adminPendingSave.defL = Number.isInteger(defL) ? defL : null;
+        state.adminPendingSave.defV = Number.isInteger(defV) ? defV : null;
+      }
+    });
+  });
 }
 
 function adminSaveWillFinalize(m, gl, gv, estado) {
@@ -1553,7 +1614,7 @@ async function setAdminMatchStatus(docId, status) {
     return;
   }
   if (status === MATCH_STATUS.FINAL && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante) && !m.ganador) {
-    showToast('Guarda el resultado y el ganador por penales.', true);
+    showToast('Guarda el resultado y quién avanzó.', true);
     return;
   }
   // No se puede volver a pendiente si ya existe marcador; usar Restaurar
@@ -1647,12 +1708,14 @@ function openAdminConfirm(docId) {
     estado,
     ganador: needsWinner ? null : inferred,
     definicion: needsWinner ? 'te' : null,
+    defL: null,
+    defV: null,
   };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Confirmar resultado';
   if (warnEl) warnEl.textContent = needsWinner
-    ? 'Elige quién avanzó y si fue en tiempo extra o penales antes de guardar.'
+    ? 'Elige si fue en tiempo extra o penales y captura el marcador de la definición.'
     : 'Puedes corregir el resultado las veces que necesites.';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
@@ -1660,7 +1723,7 @@ function openAdminConfirm(docId) {
       <span class="modal-score">${validated.gl} - ${validated.gv}</span>
       <span class="modal-team">${m.visitante}</span>
     </div>
-    ${needsWinner ? `${definitionChoiceHTML('te', 'admin-definition')}${winnerChoiceHTML(m, null, 'admin-winner')}` : ''}`;
+    ${needsWinner ? `${definitionChoiceHTML('te', 'admin-definition')}${definitionScoreHTML(m)}` : ''}`;
   attachWinnerChoiceListeners(document.getElementById('modalBody'));
   document.getElementById('confirmModal').hidden = false;
 }
@@ -1676,6 +1739,8 @@ function openAdminResetConfirm(docId) {
     estado: MATCH_STATUS.PENDING,
     ganador: null,
     definicion: null,
+    defL: null,
+    defV: null,
   };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
@@ -1698,15 +1763,21 @@ async function handleAdminModalConfirm() {
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    if (!reset && isKnockoutMatch(state.partidos.find(x => x.docId === docId)) && matchTied(gl, gv) && !pending.ganador) {
-      showToast('Elige quién avanzó.', true);
-      return;
-    }
-    if (!reset && isKnockoutMatch(state.partidos.find(x => x.docId === docId)) && matchTied(gl, gv) && !pending.definicion) {
+    const match = state.partidos.find(x => x.docId === docId);
+    let winnerToSave = pending.ganador;
+    if (!reset && isKnockoutMatch(match) && matchTied(gl, gv) && !pending.definicion) {
       showToast('Elige si fue en tiempo extra o penales.', true);
       return;
     }
-    await saveMatchResult(docId, gl, gv, estado, pending.ganador, pending.definicion);
+    if (!reset && isKnockoutMatch(match) && matchTied(gl, gv)) {
+      const validatedDefinition = validateDefinitionScore(pending.defL, pending.defV, match);
+      if (validatedDefinition.error) {
+        showToast(validatedDefinition.error, true);
+        return;
+      }
+      winnerToSave = validatedDefinition.ganador;
+    }
+    await saveMatchResult(docId, gl, gv, estado, winnerToSave, pending.definicion, pending.defL, pending.defV);
     state.adminPendingSave = null;
     state.adminEditingId = null;
     closeModal();
@@ -1770,7 +1841,7 @@ function handleLiveSyncNow() {
 // ============================================================
 // Guardar un pronóstico (por partido)
 // ============================================================
-async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = null) {
+async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = null, defL = null, defV = null) {
   if (!state.session) throw new Error('Inicia sesión');
   if (!db) throw new Error('Sin conexión');
 
@@ -1792,7 +1863,13 @@ async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = nul
   if (isKnockoutMatch(m)) {
     const winner = normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
     if (winner) item.ganador = winner;
-    if (matchTied(gl, gv) && definicion) item.definicion = definicion;
+    if (matchTied(gl, gv) && definicion) {
+      const validatedDefinition = validateDefinitionScore(defL, defV, m, winner);
+      if (validatedDefinition.error) throw new Error(validatedDefinition.error);
+      item.definicion = definicion;
+      item.defL = validatedDefinition.defL;
+      item.defV = validatedDefinition.defV;
+    }
   }
 
   await setDoc(doc(db, 'pronosticos', clave), {
@@ -2263,10 +2340,10 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const realL = hasRealScore ? m.golesLocal : '–';
   const realV = hasRealScore ? m.golesVisitante : '–';
   const predWinnerChip = hasPred && isKnockoutMatch(m) && matchTied(pr.golesLocal, pr.golesVisitante)
-    ? winnerChipHTML('Pasa', pr.ganador, pr.definicion || 'te')
+    ? winnerChipHTML('Pasa', pr.ganador, pr.definicion || 'te', pr.definicionLocal, pr.definicionVisitante)
     : '';
   const realWinnerChip = hasRealScore && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante)
-    ? winnerChipHTML('Pasó', inferredWinner(m), m.definicion)
+    ? winnerChipHTML('Pasó', inferredWinner(m), m.definicion, m.definicionLocal, m.definicionVisitante)
     : '';
   let stateClass = 'state-pending';
   if (isPlayed) stateClass = pts && pts > 0 ? 'state-win' : 'state-lose';
@@ -2348,6 +2425,8 @@ function normalizeKnockoutMatch(base, overrides = {}) {
     sourceB: base.sourceB,
     ganador: overrides.ganador ?? base.ganador ?? null,
     definicion: overrides.definicion ?? base.definicion ?? null,
+    definicionLocal: overrides.definicionLocal ?? base.definicionLocal ?? base.defL ?? null,
+    definicionVisitante: overrides.definicionVisitante ?? base.definicionVisitante ?? base.defV ?? null,
   };
 }
 
@@ -2386,18 +2465,24 @@ function winnerFromScore(local, visitante, gl, gv) {
 
 function winnerDefinitionText(definicion) {
   if (definicion === 'penales') return 'Penales';
-  if (definicion === 'te') return 'TE';
+  if (definicion === 'te') return 'Tiempo Extra';
   return null;
 }
 
-function winnerChipHTML(prefix, winner, definicion) {
+function winnerChipHTML(prefix, winner, definicion, scoreLocal = null, scoreVisitante = null) {
   const selected = normalizedWinner(winner);
   if (!selected) return '';
   const { flag, name } = splitFlag(selected);
   const suffix = winnerDefinitionText(definicion);
+  const hasDefinitionScore = Number.isInteger(scoreLocal) && Number.isInteger(scoreVisitante);
+  const label = suffix
+    ? `En ${suffix}`
+    : `${prefix} ${flag ? `<span class="winner-chip-flag">${flag}</span>` : ''}<span>${name || selected}</span>${suffix ? ` <span>en ${suffix}</span>` : ''}`;
   return `
-    <div class="winner-chip">
-      ${prefix} ${flag ? `<span class="winner-chip-flag">${flag}</span>` : ''}<span>${name || selected}</span>${suffix ? ` <span>en ${suffix}</span>` : ''}
+    <div class="winner-chip ${hasDefinitionScore ? 'has-definition-score' : ''}">
+      ${hasDefinitionScore ? `<span class="winner-chip-score">${scoreLocal}</span>` : ''}
+      <span class="winner-chip-text">${label}</span>
+      ${hasDefinitionScore ? `<span class="winner-chip-score">${scoreVisitante}</span>` : ''}
     </div>`;
 }
 
@@ -2657,6 +2742,7 @@ function renderFinales() {
   if (state.finalesMode === 'list') {
     board.innerHTML = renderFinalesList(knockoutMatches, ctx);
     attachEditingListeners(board);
+    attachFinalesCardCentering(board);
     updateFinalesNavButtons();
     return;
   }
@@ -2692,6 +2778,7 @@ function renderFinales() {
   applyFinalesZoom();
   initFinalesGestures();
   attachEditingListeners(document.getElementById('finalesBoard'));
+  attachFinalesCardCentering(document.getElementById('finalesBoard'));
   updateFinalesNavButtons();
 }
 
@@ -2726,6 +2813,59 @@ function focusFinalesMatch(matchId) {
       top: Math.max(0, viewport.scrollTop + deltaY),
       behavior: 'smooth',
     });
+  });
+}
+
+function centerFinalesCard(matchId) {
+  const viewport = document.getElementById('finalesViewport');
+  if (!viewport || !matchId) return;
+  if (state.finalesMode === 'bracket') {
+    focusFinalesMatch(Number(matchId));
+    return;
+  }
+
+  state.focusedFinalesMatchId = Number(matchId);
+  updateFinalesNavButtons();
+  requestAnimationFrame(() => {
+    const card = document.querySelector(`#finalesBoard .match-card[data-match-id="${matchId}"]`);
+    if (!card) return;
+    const tabs = document.getElementById('finalesPersonTabs');
+    const nav = document.getElementById('bottomNav');
+    const cardRect = card.getBoundingClientRect();
+    const viewportRect = viewport.getBoundingClientRect();
+    const visibleTop = Math.max(viewportRect.top, tabs?.getBoundingClientRect().bottom || viewportRect.top);
+    const visibleBottom = Math.min(
+      viewportRect.bottom,
+      nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : viewportRect.bottom
+    );
+    const visibleCenterY = visibleTop + (visibleBottom - visibleTop) / 2;
+    const deltaY = (cardRect.top + cardRect.height / 2) - visibleCenterY;
+
+    viewport.scrollTo({
+      top: Math.max(0, viewport.scrollTop + deltaY),
+      behavior: 'smooth',
+    });
+  });
+}
+
+function attachFinalesCardCentering(root = document) {
+  if (!root || root.dataset.cardCenteringReady === 'true') return;
+  root.dataset.cardCenteringReady = 'true';
+
+  const findCard = target => target.closest?.('.match-card[data-match-id]');
+
+  root.addEventListener('click', e => {
+    if (e.target.closest('button')) return;
+    const card = findCard(e.target);
+    if (!card) return;
+    centerFinalesCard(card.dataset.matchId);
+  });
+
+  root.addEventListener('focusin', e => {
+    if (!e.target.matches('input, textarea, select')) return;
+    const card = findCard(e.target);
+    if (!card) return;
+    centerFinalesCard(card.dataset.matchId);
   });
 }
 
@@ -2999,12 +3139,14 @@ function openConfirm(matchId) {
     gv,
     ganador: needsWinner ? null : winnerFromScore(m.local, m.visitante, gl, gv),
     definicion: needsWinner ? 'te' : null,
+    defL: null,
+    defV: null,
   };
   const titleEl = document.querySelector('#confirmModal .modal-title');
   const warnEl = document.querySelector('#confirmModal .modal-warn');
   if (titleEl) titleEl.textContent = 'Confirmar pronóstico';
   if (warnEl) warnEl.textContent = needsWinner
-    ? 'Elige quién avanza y si será en tiempo extra o penales. Una vez guardado, no podrás editar este pronóstico.'
+    ? 'Elige si será en tiempo extra o penales y el marcador de la definición. Una vez guardado, no podrás editar este pronóstico.'
     : 'Una vez guardado, no podrás editar este pronóstico.';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
@@ -3012,7 +3154,7 @@ function openConfirm(matchId) {
       <span class="modal-score">${gl} - ${gv}</span>
       <span class="modal-team">${m.visitante}</span>
     </div>
-    ${needsWinner ? `${definitionChoiceHTML('te', 'prediction-definition')}${winnerChoiceHTML(m, null, 'prediction-winner')}` : ''}`;
+    ${needsWinner ? `${definitionChoiceHTML('te', 'prediction-definition')}${definitionScoreHTML(m)}` : ''}`;
   attachWinnerChoiceListeners(document.getElementById('modalBody'));
   document.getElementById('confirmModal').hidden = false;
 }
@@ -3025,21 +3167,26 @@ function closeModal() {
 async function handleModalConfirm() {
   if (state.adminPendingSave) return handleAdminModalConfirm();
   if (!state.pendingSave) return;
-  const { matchId, gl, gv, ganador, definicion } = state.pendingSave;
+  const { matchId, gl, gv, ganador, definicion, defL, defV } = state.pendingSave;
   const btn = document.getElementById('modalConfirm');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
     const m = findAnyMatch(matchId);
-    if (isKnockoutMatch(m) && matchTied(gl, gv) && !ganador) {
-      showToast('Elige quién avanza.', true);
-      return;
-    }
     if (isKnockoutMatch(m) && matchTied(gl, gv) && !definicion) {
       showToast('Elige si será en tiempo extra o penales.', true);
       return;
     }
-    await saveSingleMatch(matchId, gl, gv, ganador, definicion);
+    let winnerToSave = ganador;
+    if (isKnockoutMatch(m) && matchTied(gl, gv)) {
+      const validatedDefinition = validateDefinitionScore(defL, defV, m);
+      if (validatedDefinition.error) {
+        showToast(validatedDefinition.error, true);
+        return;
+      }
+      winnerToSave = validatedDefinition.ganador;
+    }
+    await saveSingleMatch(matchId, gl, gv, winnerToSave, definicion, defL, defV);
     state.editingMatchId = null;
     state.pendingSave = null;
     closeModal();
