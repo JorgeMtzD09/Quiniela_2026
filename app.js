@@ -324,6 +324,7 @@ let state = {
   podio: [],
   selectedPerson: null,
   selectedDay: null,
+  finalesSelectedDay: null,
   session: null,
   firebaseReady: false,
   editingMatchId: null,
@@ -1995,7 +1996,8 @@ function renderAdminPredictionMatchesByDay(matches, predMap, savedItems) {
   const groups = [];
   const indexByKey = new Map();
   const SIN_FECHA = '__sin_fecha__';
-  for (const m of matches) {
+  const ordered = [...matches].sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+  for (const m of ordered) {
     const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
     if (!indexByKey.has(key)) {
       indexByKey.set(key, groups.length);
@@ -2893,23 +2895,98 @@ function todayKeyCDMX() {
   return cdmxDateKey(new Date(nowMs()));
 }
 
-function renderFinalesList(knockoutMatches, ctx) {
-  const todayKey = todayKeyCDMX();
-  const todayMatches = knockoutMatches
-    .filter(m => m.fecha && cdmxDateKey(m.fecha) === todayKey)
-    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
-  const label = todayMatches[0]?.fecha
-    ? formatDayHeaderCDMX(todayMatches[0].fecha)
-    : formatDayHeaderCDMX(new Date(nowMs()));
+function getFinalesDayGroups(matches) {
+  const groups = [];
+  const indexByKey = new Map();
+  const SIN_FECHA = '__sin_fecha__';
+  const ordered = [...matches].sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+  for (const m of ordered) {
+    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({
+        key,
+        tabLabel: m.fecha ? formatDayTabCDMX(m.fecha) : 'Sin fecha',
+        headerLabel: m.fecha ? formatDayHeaderCDMX(m.fecha) : 'Fecha por definir',
+        matches: [],
+      });
+    }
+    groups[indexByKey.get(key)].matches.push(m);
+  }
+  return groups;
+}
 
-  if (!todayMatches.length) {
+function ensureFinalesSelectedDay(matches) {
+  const groups = getFinalesDayGroups(matches);
+  if (!groups.length) return null;
+  if (state.finalesSelectedDay && groups.some(g => g.key === state.finalesSelectedDay)) return state.finalesSelectedDay;
+  const today = todayKeyCDMX();
+  state.finalesSelectedDay = groups.some(g => g.key === today) ? today : groups[0].key;
+  return state.finalesSelectedDay;
+}
+
+function centerActiveFinalesDayTab() {
+  const container = document.getElementById('finalesDayTabs');
+  if (!container) return;
+  const active = container.querySelector('.day-tab.active');
+  if (!active) return;
+  requestAnimationFrame(() => {
+    const target = active.offsetLeft - container.clientWidth / 2 + active.offsetWidth / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
+  });
+}
+
+function renderFinalesDayTabs(matches) {
+  const el = document.getElementById('finalesDayTabs');
+  if (!el) return;
+  const show = state.finalesMode === 'list';
+  el.hidden = !show;
+  if (!show) {
+    el.innerHTML = '';
+    return;
+  }
+  const groups = getFinalesDayGroups(matches);
+  if (!groups.length) {
+    el.innerHTML = '';
+    return;
+  }
+  ensureFinalesSelectedDay(matches);
+  el.innerHTML = groups.map(g => `
+    <button type="button" class="day-tab ${state.finalesSelectedDay === g.key ? 'active' : ''}" data-day="${g.key}">
+      ${g.tabLabel}
+    </button>`).join('');
+  el.querySelectorAll('.day-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.day === state.finalesSelectedDay) return;
+      if (state.editingMatchId !== null) {
+        const ok = confirm('Tienes un pronóstico sin guardar. ¿Descartarlo y cambiar de fecha?');
+        if (!ok) return;
+        state.editingMatchId = null;
+        state.pendingSave = null;
+      }
+      state.finalesSelectedDay = btn.dataset.day;
+      renderFinales();
+    });
+  });
+  centerActiveFinalesDayTab();
+}
+
+function renderFinalesList(knockoutMatches, ctx) {
+  const selectedDay = ensureFinalesSelectedDay(knockoutMatches);
+  const groups = getFinalesDayGroups(knockoutMatches);
+  const selectedGroup = groups.find(g => g.key === selectedDay);
+  const dayMatches = (selectedGroup?.matches || [])
+    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+  const label = selectedGroup?.headerLabel || 'Fecha por definir';
+
+  if (!dayMatches.length) {
     return `
       <div class="finales-list">
         <div class="day-group">
           <h3 class="day-header">${label}</h3>
           <div class="finales-empty-list">
-            <strong>No hay partidos hoy</strong>
-            <span>Cambia a Llave para ver toda la fase final.</span>
+            <strong>No hay partidos</strong>
+            <span>Elige otra fecha o cambia a Llave para ver toda la fase final.</span>
           </div>
         </div>
       </div>`;
@@ -2920,7 +2997,7 @@ function renderFinalesList(knockoutMatches, ctx) {
       <div class="day-group">
         <h3 class="day-header">${label}</h3>
         <div class="day-matches">
-          ${renderMatchesFlat(todayMatches, ctx)}
+          ${renderMatchesFlat(dayMatches, ctx)}
         </div>
       </div>
     </div>`;
@@ -3015,6 +3092,7 @@ function renderFinales() {
   document.querySelector('.finales-controls')?.toggleAttribute('hidden', state.finalesMode !== 'bracket');
   viewport?.classList.toggle('is-list-mode', state.finalesMode === 'list');
   board.classList.toggle('is-list-mode', state.finalesMode === 'list');
+  renderFinalesDayTabs(knockoutMatches);
 
   if (state.finalesMode === 'list') {
     board.innerHTML = renderFinalesList(knockoutMatches, ctx);

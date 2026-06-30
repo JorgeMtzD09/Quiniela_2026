@@ -585,6 +585,10 @@ body.intro-playing {
 
 .day-tabs::-webkit-scrollbar { display: none; }
 
+.day-tabs[hidden] {
+  display: none;
+}
+
 .day-tab {
   flex-shrink: 0;
   padding: 8px 14px;
@@ -1700,6 +1704,15 @@ body.intro-playing {
   border-bottom: 1px solid var(--border);
 }
 
+.finales-day-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  padding: 6px 10px;
+  background: rgba(244, 245, 248, 0.94);
+  border-bottom: 1px solid var(--border);
+}
+
 .finales-title {
   font-size: 1.02rem;
   line-height: 1.05;
@@ -1816,6 +1829,7 @@ body.intro-playing {
 }
 
 .finales-viewport.is-list-mode {
+  height: calc(100dvh - var(--header-stack-height) - 29px - 47px - 49px);
   touch-action: pan-y;
   cursor: auto;
 }
