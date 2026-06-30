@@ -36,8 +36,8 @@ const BALL_SVG = `<svg class="ball-svg" viewBox="0 0 64 64" aria-hidden="true">
 </svg>`;
 
 export function getRankColor(rank) {
-  if (rank <= 3) return RANK_COLORS[rank];
-  return FIELD_ACCENT_COLORS[(rank - 4) % FIELD_ACCENT_COLORS.length];
+  if (rank === 1) return RANK_COLORS[1];
+  return FIELD_ACCENT_COLORS[(rank - 2) % FIELD_ACCENT_COLORS.length];
 }
 
 export function groupByRank(leaderboard) {
@@ -98,8 +98,6 @@ function buildSharedCard(rank, group, context) {
   return `
     <article class="rank-card rank-${rank} ${context}${tie ? ' is-tie' : ''}" style="--accent: ${accent}">
       <div class="rank-card-meta">
-        <span>${rank}°</span>
-        <span></span>
         <span>${points} pts</span>
       </div>
       <div class="rank-card-name">${namesHtml(group)}</div>
@@ -116,10 +114,10 @@ function buildPodiumLabel(rank, group) {
     </div>`;
 }
 
-function buildFieldLabel(rank, group, index, isLast) {
+function buildFieldLabel(rank, group, index) {
   const pos = FIELD_POSITIONS[index % FIELD_POSITIONS.length];
   return `
-    <div class="field-marker${isLast ? ' is-last' : ''}" data-rank="${rank}" data-field-index="${index}" style="--label-x: ${pos.left}%; --label-y: ${pos.top}%; --accent: ${getRankColor(rank)}">
+    <div class="field-marker" data-rank="${rank}" data-field-index="${index}" style="--label-x: ${pos.left}%; --label-y: ${pos.top}%; --accent: ${getRankColor(rank)}">
       ${buildSharedCard(rank, group, 'on-field')}
       <span class="field-tail" aria-hidden="true"></span>
       ${buildFallbackBalls(group, rank)}
@@ -129,7 +127,6 @@ function buildFieldLabel(rank, group, index, isLast) {
 function buildOverlay(leaderboard) {
   const groups = groupByRank(leaderboard);
   const fieldGroups = [...groups.entries()].filter(([rank]) => rank > 1);
-  const lastRank = fieldGroups.length ? Math.max(...fieldGroups.map(([rank]) => rank)) : 0;
 
   return `
     <div class="podio-overlay">
@@ -139,7 +136,7 @@ function buildOverlay(leaderboard) {
         </div>
       </section>
       <section class="field-labels" aria-label="Resto de participantes">
-        ${fieldGroups.map(([rank, group], index) => buildFieldLabel(rank, group, index, rank === lastRank)).join('')}
+        ${fieldGroups.map(([rank, group], index) => buildFieldLabel(rank, group, index)).join('')}
       </section>
     </div>`;
 }

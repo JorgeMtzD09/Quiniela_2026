@@ -109,37 +109,6 @@ function createBallTexture(onLoad) {
   return texture;
 }
 
-function createGrayBallTexture(onLoad) {
-  const texture = new THREE.TextureLoader().load('./assets/ballon.png', loaded => {
-    const image = loaded.image;
-    const canvas = document.createElement('canvas');
-    canvas.width = image.naturalWidth || image.width;
-    canvas.height = image.naturalHeight || image.height;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    for (let i = 0; i < pixels.data.length; i += 4) {
-      const red = pixels.data[i];
-      const green = pixels.data[i + 1];
-      const blue = pixels.data[i + 2];
-      const gray = red * 0.24 + green * 0.58 + blue * 0.18;
-      pixels.data[i] = gray * 0.78;
-      pixels.data[i + 1] = gray * 0.82;
-      pixels.data[i + 2] = gray * 0.9;
-    }
-    ctx.putImageData(pixels, 0, 0);
-
-    texture.image = canvas;
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = 8;
-    texture.needsUpdate = true;
-    onLoad?.();
-  });
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 function createMetalTexture(rank) {
   const canvas = document.createElement('canvas');
   canvas.width = 512;
@@ -521,7 +490,6 @@ export class PodioScene {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.ballTexture = createBallTexture(() => this.resize());
-    this.sadBallTexture = createGrayBallTexture(() => this.resize());
     this.fieldTexture = createFieldTexture();
     this.backdropTexture = createStadiumBackdropTexture();
     this.textures.push(this.backdropTexture);
@@ -933,7 +901,6 @@ export class PodioScene {
     group.userData.baseZ = z;
     group.userData.rank = rank;
     group.userData.onField = Boolean(options.onField);
-    group.userData.isLast = Boolean(options.isLast);
 
     if (options.winner) {
       const glowTexture = createGlowTexture();
@@ -958,7 +925,7 @@ export class PodioScene {
     const ball = new THREE.Mesh(
       new THREE.PlaneGeometry(size * 2.25, size * 2.25),
       new THREE.MeshStandardMaterial({
-        map: options.isLast ? this.sadBallTexture : this.ballTexture,
+        map: this.ballTexture,
         transparent: true,
         alphaTest: 0.08,
         roughness: 0.52,
@@ -974,9 +941,9 @@ export class PodioScene {
       const side = Math.random() > 0.5 ? 1 : -1;
       const zDrift = (Math.random() - 0.5) * 0.56;
       group.userData.entryDelay = 0.34 + (options.fieldIndex || 0) * 0.18 + (options.ballIndex || 0) * 0.08 + Math.random() * 0.1;
-      group.userData.entryDuration = options.isLast ? 2.65 : 1.55;
+      group.userData.entryDuration = 1.55;
       group.userData.fromX = FIELD.x + side * (FIELD.width * 0.72 + 0.62);
-      group.userData.fromY = y + (options.isLast ? 0.52 : 0.78);
+      group.userData.fromY = y + 0.78;
       group.userData.fromZ = z + zDrift;
       group.userData.rollSide = -side;
       group.position.set(group.userData.fromX, group.userData.fromY, group.userData.fromZ);
@@ -992,7 +959,6 @@ export class PodioScene {
 
   addBalls() {
     const groups = groupByRank(this.leaderboard);
-    const lastRank = this.leaderboard.reduce((max, person) => Math.max(max, person.rank || 0), 0);
 
     [1].forEach(rank => {
       const people = groups.get(rank) || [];
@@ -1017,7 +983,6 @@ export class PodioScene {
           const size = ballSize(rank, people.length, false);
           this.addBall(world.x, 0.18, world.z, rank, size, {
             onField: true,
-            isLast: rank === lastRank,
             fieldIndex: groupIndex,
             ballIndex: index,
           });
@@ -1076,14 +1041,13 @@ export class PodioScene {
         const duration = group.userData.entryDuration || 1.5;
         const progress = clamp01((elapsed - delay) / duration);
         const eased = easeOutCubic(progress);
-        const sadWeight = group.userData.isLast ? 0.45 : 1;
-        const rollFloat = Math.sin(time * 1.15 + index * 0.8) * 0.01 * sadWeight;
-        const bounce = Math.sin(progress * Math.PI) * (group.userData.isLast ? 0.035 : 0.075);
+        const rollFloat = Math.sin(time * 1.15 + index * 0.8) * 0.01;
+        const bounce = Math.sin(progress * Math.PI) * 0.075;
         group.position.x = lerp(group.userData.fromX, group.userData.baseX, eased);
         group.position.z = lerp(group.userData.fromZ, group.userData.baseZ, eased);
         group.position.y = lerp(group.userData.fromY, group.userData.baseY, eased) + bounce + rollFloat;
         group.lookAt(this.camera.position);
-        group.rotateZ((progress * Math.PI * (group.userData.isLast ? 2.25 : 4.4) + time * 0.28) * group.userData.rollSide);
+        group.rotateZ((progress * Math.PI * 4.4 + time * 0.28) * group.userData.rollSide);
         return;
       }
 
@@ -1128,7 +1092,6 @@ export class PodioScene {
       });
     });
     this.ballTexture?.dispose();
-    this.sadBallTexture?.dispose();
     this.fieldTexture?.dispose();
     this.textures.forEach(texture => texture.dispose());
     this.renderer.dispose();

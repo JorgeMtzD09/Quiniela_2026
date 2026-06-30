@@ -3171,8 +3171,12 @@ function focusFinalesMatch(matchId, options = {}) {
   const visibleCenterY = (visibleTop - viewportRect.top) + (visibleBottom - visibleTop) / 2;
 
   state.focusedFinalesMatchId = match.id;
-  state.knockoutZoom = zoom;
-  applyFinalesZoom();
+  if (behavior === 'smooth') {
+    setFinalesZoom(zoom);
+  } else {
+    state.knockoutZoom = zoom;
+    applyFinalesZoom();
+  }
 
   viewport.scrollTo({
     left: Math.max(0, cardCenterX - viewport.clientWidth / 2),
