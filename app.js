@@ -3141,45 +3141,53 @@ function renderFinales() {
   updateFinalesNavButtons();
 }
 
-function focusFinalesMatch(matchId) {
+function focusFinalesMatch(matchId, options = {}) {
+  const behavior = options.behavior || 'auto';
   const viewport = document.getElementById('finalesViewport');
   const match = knockoutMatchesSource().find(m => m.id === matchId);
   if (!viewport || !match) return;
-  state.focusedFinalesMatchId = match.id;
-  updateFinalesNavButtons();
+  const card = document.querySelector(`#finalesBoard .bracket-match[data-match-id="${matchId}"] .match-card`);
+  if (!card) return;
+  const tabs = document.getElementById('finalesPersonTabs');
+  const nav = document.getElementById('bottomNav');
+  const viewportRect = viewport.getBoundingClientRect();
+  const visibleTop = Math.max(viewportRect.top, tabs?.getBoundingClientRect().bottom || viewportRect.top);
+  const visibleBottom = Math.min(
+    viewportRect.bottom,
+    nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : viewportRect.bottom
+  );
+  const zoom = clampFinalesZoom(KNOCKOUT_FOCUS_ZOOM);
+  const col = knockoutColumnIndex(match.round);
+  const cardCenterX = (
+    KNOCKOUT_BOARD_PADDING_X
+    + col * (KNOCKOUT_CARD_WIDTH + KNOCKOUT_COL_GAP)
+    + KNOCKOUT_CARD_WIDTH / 2
+  ) * zoom;
+  const cardCenterY = (
+    KNOCKOUT_BOARD_PADDING_TOP
+    + knockoutTop(match)
+    + (card.offsetHeight || KNOCKOUT_CARD_MID * 2) / 2
+  ) * zoom;
+  const visibleCenterY = (visibleTop - viewportRect.top) + (visibleBottom - visibleTop) / 2;
 
-  state.knockoutZoom = clampFinalesZoom(KNOCKOUT_FOCUS_ZOOM);
+  state.focusedFinalesMatchId = match.id;
+  state.knockoutZoom = zoom;
   applyFinalesZoom();
 
-  requestAnimationFrame(() => {
-    const card = document.querySelector(`#finalesBoard .bracket-match[data-match-id="${matchId}"] .match-card`);
-    if (!card) return;
-    const tabs = document.getElementById('finalesPersonTabs');
-    const nav = document.getElementById('bottomNav');
-    const cardRect = card.getBoundingClientRect();
-    const viewportRect = viewport.getBoundingClientRect();
-    const visibleTop = Math.max(viewportRect.top, tabs?.getBoundingClientRect().bottom || viewportRect.top);
-    const visibleBottom = Math.min(
-      viewportRect.bottom,
-      nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : viewportRect.bottom
-    );
-    const visibleCenterY = visibleTop + (visibleBottom - visibleTop) / 2;
-    const deltaX = (cardRect.left + cardRect.width / 2) - (viewportRect.left + viewportRect.width / 2);
-    const deltaY = (cardRect.top + cardRect.height / 2) - visibleCenterY;
-
-    viewport.scrollTo({
-      left: Math.max(0, viewport.scrollLeft + deltaX),
-      top: Math.max(0, viewport.scrollTop + deltaY),
-      behavior: 'smooth',
-    });
+  viewport.scrollTo({
+    left: Math.max(0, cardCenterX - viewport.clientWidth / 2),
+    top: Math.max(0, cardCenterY - visibleCenterY),
+    behavior,
   });
+
+  updateFinalesNavButtons();
 }
 
 function centerFinalesCard(matchId) {
   const viewport = document.getElementById('finalesViewport');
   if (!viewport || !matchId) return;
   if (state.finalesMode === 'bracket') {
-    focusFinalesMatch(Number(matchId));
+    focusFinalesMatch(Number(matchId), { behavior: 'auto' });
     return;
   }
 
@@ -3238,15 +3246,51 @@ function getFinalesJumpTargetMatch() {
   const ordered = orderedFinalesMatches();
   const liveTarget = ordered.find(m => !matchFinalized(m) && (matchLive(m) || matchHalftime(m)));
   if (liveTarget) return liveTarget;
-  return ordered.find(m => !matchFinalized(m) && !matchHasScore(m))
+  const now = nowMs();
+  return ordered.find(m => !matchFinalized(m) && m.fecha && m.fecha.getTime() >= now)
+    || ordered.find(m => !matchFinalized(m) && !matchHasScore(m))
     || ordered.find(m => !matchFinalized(m))
     || null;
+}
+
+function visibleFinalesMatchId() {
+  if (state.finalesMode !== 'bracket') return null;
+  const viewport = document.getElementById('finalesViewport');
+  if (!viewport) return null;
+  const cards = [...document.querySelectorAll('#finalesBoard .bracket-match[data-match-id] .match-card')];
+  if (!cards.length) return null;
+  const tabs = document.getElementById('finalesPersonTabs');
+  const nav = document.getElementById('bottomNav');
+  const viewportRect = viewport.getBoundingClientRect();
+  const visibleTop = Math.max(viewportRect.top, tabs?.getBoundingClientRect().bottom || viewportRect.top);
+  const visibleBottom = Math.min(
+    viewportRect.bottom,
+    nav && nav.style.display !== 'none' ? nav.getBoundingClientRect().top : viewportRect.bottom
+  );
+  const visibleCenterX = viewportRect.left + viewportRect.width / 2;
+  const visibleCenterY = visibleTop + (visibleBottom - visibleTop) / 2;
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (const card of cards) {
+    const rect = card.getBoundingClientRect();
+    if (rect.bottom < visibleTop || rect.top > visibleBottom || rect.right < viewportRect.left || rect.left > viewportRect.right) continue;
+    const dx = (rect.left + rect.width / 2) - visibleCenterX;
+    const dy = (rect.top + rect.height / 2) - visibleCenterY;
+    const distance = Math.hypot(dx, dy);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = Number(card.closest('.bracket-match')?.dataset.matchId);
+    }
+  }
+  return Number.isFinite(best) ? best : null;
 }
 
 function currentFinalesIndex() {
   const ordered = orderedFinalesMatches();
   if (!ordered.length) return { ordered, index: -1 };
-  const focusedId = state.focusedFinalesMatchId;
+  const visibleId = visibleFinalesMatchId();
+  const focusedId = visibleId ?? state.focusedFinalesMatchId;
   let index = focusedId == null ? -1 : ordered.findIndex(m => m.id === focusedId);
   if (index === -1) {
     const target = getFinalesJumpTargetMatch();
@@ -3287,25 +3331,19 @@ function setFinalesMode(mode) {
 
 function focusFinalesRelative(step) {
   if (state.finalesMode !== 'bracket') return;
-  if (state.focusedFinalesMatchId == null) {
-    const target = getFinalesJumpTargetMatch();
-    if (!target) return;
-    focusFinalesMatch(target.id);
-    return;
-  }
   const { ordered, index } = currentFinalesIndex();
   if (!ordered.length) return;
   const nextIndex = Math.max(0, Math.min(ordered.length - 1, index + step));
   const target = ordered[nextIndex];
   if (!target) return;
-  focusFinalesMatch(target.id);
+  focusFinalesMatch(target.id, { behavior: 'smooth' });
 }
 
 function focusCurrentFinalesMatch() {
   if (state.finalesMode !== 'bracket') return;
   const target = getFinalesJumpTargetMatch();
   if (!target) return;
-  focusFinalesMatch(target.id);
+  focusFinalesMatch(target.id, { behavior: 'smooth' });
 }
 
 function initFinalesGestures() {
@@ -3318,6 +3356,7 @@ function initFinalesGestures() {
   let dragPointerId = null;
   let lastDragPoint = null;
   let didDrag = false;
+  let navUpdateFrame = null;
 
   const pointerDistance = () => {
     const pts = [...pointers.values()];
@@ -3341,6 +3380,15 @@ function initFinalesGestures() {
     const factor = Math.exp(-e.deltaY * KNOCKOUT_WHEEL_ZOOM_SPEED);
     setFinalesZoom(state.knockoutZoom * factor, { clientX: e.clientX, clientY: e.clientY });
   }, { passive: false });
+
+  viewport.addEventListener('scroll', () => {
+    if (state.finalesMode !== 'bracket') return;
+    if (navUpdateFrame !== null) return;
+    navUpdateFrame = requestAnimationFrame(() => {
+      navUpdateFrame = null;
+      updateFinalesNavButtons();
+    });
+  }, { passive: true });
 
   viewport.addEventListener('pointerdown', e => {
     if (state.finalesMode !== 'bracket') return;
