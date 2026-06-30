@@ -183,12 +183,20 @@
 
     <section class="view" id="viewAdmin">
       <div class="section-header">
-        <h2>Capturar resultados</h2>
+        <h2 id="adminSectionTitle">Capturar resultados</h2>
         <button type="button" class="btn-live-sync" id="btnLiveSyncNow">Actualizar ahora</button>
+      </div>
+      <div class="admin-tabs" role="group" aria-label="Sección de administración">
+        <button type="button" class="admin-tab active" id="btnAdminResults" data-admin-section="results">Resultados</button>
+        <button type="button" class="admin-tab" id="btnAdminPredictions" data-admin-section="predictions">Pronósticos</button>
       </div>
       <p class="admin-sync-hint" id="adminSyncHint">
         Marcadores automáticos al abrir la app y al actualizar manualmente.
       </p>
+      <div class="admin-predictions-toolbar" id="adminPredictionsToolbar" hidden>
+        <label class="admin-select-label" for="adminPredictionPerson">Participante</label>
+        <select class="admin-select" id="adminPredictionPerson"></select>
+      </div>
       <div id="adminContent" class="match-list"></div>
     </section>
   </main>

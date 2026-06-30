@@ -93,9 +93,7 @@ service cloud.firestore {
       allow update: if request.auth != null
         && validPronosticoDoc()
         && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['items', 'actualizado', 'compartirPronosticos'])
-        && request.resource.data.items.diff(resource.data.items).removedKeys().size() == 0
-        && request.resource.data.items.diff(resource.data.items).changedKeys().size() == 0;
+             .hasOnly(['items', 'actualizado', 'compartirPronosticos']);
       allow delete: if false;
     }
   }

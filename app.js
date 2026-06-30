@@ -317,6 +317,8 @@ let state = {
   clockOffset: 0,
   apiStandings: null,
   apiStandingsAt: null,
+  adminSection: 'results',
+  adminPredictionPerson: null,
   activeView: 'info',
   gruposPollTimer: null,
   knockoutZoom: 0.86,
@@ -1070,12 +1072,12 @@ function logout() {
 // ============================================================
 // Transformar datos Firestore → formato app
 // ============================================================
-function pronosticosFromFirestore(docs, partidos) {
+function pronosticosFromFirestore(docs, partidos, participantes = state.participantes) {
   const pronosticos = {};
   const meta = {};
   const predictionMatches = partidos;
 
-  for (const p of state.participantes) {
+  for (const p of participantes) {
     pronosticos[p.clave] = predictionMatches.map(m => ({ id: m.id, golesLocal: null, golesVisitante: null }));
     meta[p.clave] = { items: {}, compartirPronosticos: true };
   }
@@ -1229,7 +1231,7 @@ function subscribeFirestore() {
 
   const maybeUpdate = () => {
     if (!partidos.length || !participantes.length) return;
-    const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos);
+    const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos, participantes);
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
@@ -1297,16 +1299,44 @@ function subscribeAdmin() {
   if (!db) return;
   teardownListeners();
   const { collection, onSnapshot, query, orderBy } = firestoreFns;
+  let partidos = [];
+  let participantes = [];
+  let pronosticosDocs = [];
+
+  const maybeUpdate = () => {
+    if (!partidos.length) return;
+    const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos, participantes);
+    applyData(partidos, participantes, pronosticos, meta);
+    if (state.adminEditingId === null) renderAdmin();
+    setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
+  };
 
   unsubscribers.push(
     onSnapshot(query(collection(db, 'partidos'), orderBy('id')), snap => {
-      state.partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
-      if (state.adminEditingId === null) renderAdmin();
-      setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
+      partidos = snap.docs.map(parsePartidoDoc).sort((a, b) => a.id - b.id);
+      maybeUpdate();
     }, err => {
       console.error(err);
       setStatus('Error al leer partidos', 'error');
     })
+  );
+
+  unsubscribers.push(
+    onSnapshot(collection(db, 'participantes'), snap => {
+      participantes = snap.docs.map(d => ({
+        clave: d.id,
+        nombreVisible: d.data().nombreVisible,
+        orden: d.data().orden ?? 0,
+      })).sort((a, b) => a.orden - b.orden || a.nombreVisible.localeCompare(b.nombreVisible, 'es'));
+      maybeUpdate();
+    }, err => { console.error(err); setStatus('Error al leer participantes', 'error'); })
+  );
+
+  unsubscribers.push(
+    onSnapshot(collection(db, 'pronosticos'), snap => {
+      pronosticosDocs = snap.docs;
+      maybeUpdate();
+    }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
   );
 }
 
@@ -1814,13 +1844,253 @@ function showToast(message, isError) {
 function renderAdmin() {
   const el = document.getElementById('adminContent');
   if (!el) return;
-  if (!state.partidos.length) {
-    el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando partidos...</div>';
+  renderAdminShell();
+
+  if (state.adminSection === 'predictions') {
+    renderAdminPredictions();
+  } else {
+    if (!state.partidos.length) {
+      el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando partidos...</div>';
+      return;
+    }
+    el.innerHTML = renderAdminMatchesByDay(state.partidos);
+    attachAdminListeners();
+  }
+  updateJumpButton();
+}
+
+function renderAdminShell() {
+  const title = document.getElementById('adminSectionTitle');
+  const syncHint = document.getElementById('adminSyncHint');
+  const syncBtn = document.getElementById('btnLiveSyncNow');
+  const toolbar = document.getElementById('adminPredictionsToolbar');
+  if (title) title.textContent = state.adminSection === 'predictions' ? 'Editar pronósticos' : 'Capturar resultados';
+  if (syncHint) syncHint.hidden = state.adminSection === 'predictions';
+  if (syncBtn) syncBtn.hidden = state.adminSection === 'predictions';
+  if (toolbar) toolbar.hidden = state.adminSection !== 'predictions';
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.adminSection === state.adminSection);
+  });
+}
+
+function adminPredictionMatches() {
+  return state.partidos
+    .filter(isKnockoutMatch)
+    .sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+}
+
+function ensureAdminPredictionPerson() {
+  if (state.adminPredictionPerson && state.participantes.some(p => p.clave === state.adminPredictionPerson)) return;
+  state.adminPredictionPerson = state.participantes[0]?.clave || null;
+}
+
+function renderAdminPredictionPersonSelect() {
+  const select = document.getElementById('adminPredictionPerson');
+  if (!select) return;
+  ensureAdminPredictionPerson();
+  select.innerHTML = state.participantes.map(p => `
+    <option value="${p.clave}" ${p.clave === state.adminPredictionPerson ? 'selected' : ''}>${p.nombreVisible}</option>
+  `).join('');
+}
+
+function buildAdminPredictionCard(match, pred, savedItem) {
+  const glVal = pred?.golesLocal != null ? pred.golesLocal : '';
+  const gvVal = pred?.golesVisitante != null ? pred.golesVisitante : '';
+  const defLVal = pred?.definicionLocal != null ? pred.definicionLocal : '';
+  const defVVal = pred?.definicionVisitante != null ? pred.definicionVisitante : '';
+  const isTie = glVal !== '' && gvVal !== '' && Number(glVal) === Number(gvVal);
+  const definition = pred?.definicion || savedItem?.definicion || 'te';
+  const teams = `<div class="match-teams">${teamBlock(match.local, 'home')}<span class="match-vs">vs</span>${teamBlock(match.visitante, 'away')}</div>`;
+  return `
+    <div class="match-card form-card editable-admin-prediction-card" data-match-id="${match.id}">
+      ${matchDatetimeHTML(match)}
+      ${teams}
+      <div class="form-score-row">
+        <div class="form-score-field">
+          <input class="form-score-input admin-pred-score-input" type="number" min="0" max="20" step="1"
+                 name="admin_pred_l_${match.id}" inputmode="numeric" placeholder="-" value="${glVal}">
+        </div>
+        <span class="form-score-sep">—</span>
+        <div class="form-score-field">
+          <input class="form-score-input admin-pred-score-input" type="number" min="0" max="20" step="1"
+                 name="admin_pred_v_${match.id}" inputmode="numeric" placeholder="-" value="${gvVal}">
+        </div>
+      </div>
+      <div class="admin-prediction-definition" ${isTie ? '' : 'hidden'}>
+        ${definitionChoiceHTML(definition, `admin-pred-definition-${match.id}`)}
+        ${definitionScoreHTML(match, defLVal, defVVal)}
+      </div>
+      <div class="admin-footer">
+        <span class="match-points ${savedItem ? 'pts-saved' : 'pts-pending'}">${savedItem ? 'Guardado' : 'Sin pronóstico'}</span>
+      </div>
+      <div class="edit-actions">
+        <button type="button" class="btn-secondary btn-clear-admin-prediction">Limpiar</button>
+        <button type="button" class="btn-primary btn-save-admin-prediction">Guardar</button>
+      </div>
+    </div>`;
+}
+
+function renderAdminPredictions() {
+  const el = document.getElementById('adminContent');
+  if (!el) return;
+  renderAdminPredictionPersonSelect();
+  if (!state.adminPredictionPerson) {
+    el.innerHTML = '<div class="loading">No hay participantes.</div>';
     return;
   }
-  el.innerHTML = renderAdminMatchesByDay(state.partidos);
-  attachAdminListeners();
-  updateJumpButton();
+
+  const meta = state.pronosticosMeta[state.adminPredictionPerson] || { items: {} };
+  const savedItems = meta.items || {};
+  const preds = state.pronosticos[state.adminPredictionPerson] || [];
+  const predMap = {};
+  preds.forEach(pr => { predMap[pr.id] = pr; });
+  const matches = knockoutResolvedMatches(predMap)
+    .filter(m => adminPredictionMatches().some(x => x.id === m.id))
+    .sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+
+  el.innerHTML = renderAdminPredictionMatchesByDay(matches, predMap, savedItems);
+  attachAdminPredictionListeners();
+}
+
+function adminPredictionPredMap(person = state.adminPredictionPerson) {
+  const preds = state.pronosticos[person] || [];
+  const predMap = {};
+  preds.forEach(pr => { predMap[pr.id] = pr; });
+  return predMap;
+}
+
+function findAdminPredictionMatch(matchId) {
+  return knockoutResolvedMatches(adminPredictionPredMap())
+    .find(m => Number(m.id) === Number(matchId))
+    || findResolvedKnockoutMatch(matchId)
+    || findAnyMatch(matchId);
+}
+
+function renderAdminPredictionMatchesByDay(matches, predMap, savedItems) {
+  const groups = [];
+  const indexByKey = new Map();
+  const SIN_FECHA = '__sin_fecha__';
+  for (const m of matches) {
+    const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
+    if (!indexByKey.has(key)) {
+      indexByKey.set(key, groups.length);
+      groups.push({
+        key,
+        label: m.fecha ? formatDayHeaderCDMX(m.fecha) : 'Fecha por definir',
+        matches: [],
+      });
+    }
+    groups[indexByKey.get(key)].matches.push(m);
+  }
+
+  return groups.map(g => `
+    <div class="day-group">
+      <h3 class="day-header">${g.label}</h3>
+      <div class="day-matches">
+        ${g.matches.map(m => buildAdminPredictionCard(m, predMap[m.id], savedItems[String(m.id)])).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function attachAdminPredictionListeners() {
+  document.querySelectorAll('.editable-admin-prediction-card').forEach(card => {
+    const matchId = Number(card.dataset.matchId);
+    const updateDefinitionVisibility = () => {
+      const lRaw = card.querySelector(`input[name="admin_pred_l_${matchId}"]`)?.value ?? '';
+      const vRaw = card.querySelector(`input[name="admin_pred_v_${matchId}"]`)?.value ?? '';
+      const definition = card.querySelector('.admin-prediction-definition');
+      const tied = lRaw !== '' && vRaw !== '' && Number(lRaw) === Number(vRaw);
+      if (definition) definition.hidden = !tied;
+    };
+    card.querySelectorAll('.admin-pred-score-input').forEach(input => {
+      input.addEventListener('input', updateDefinitionVisibility);
+    });
+    attachWinnerChoiceListeners(card);
+    card.querySelector('.btn-save-admin-prediction')?.addEventListener('click', () => saveAdminPrediction(matchId));
+    card.querySelector('.btn-clear-admin-prediction')?.addEventListener('click', () => clearAdminPrediction(matchId));
+  });
+}
+
+function readDefinitionScoreFromCard(card) {
+  const lRaw = card.querySelector('input[name="def_l"]')?.value ?? '';
+  const vRaw = card.querySelector('input[name="def_v"]')?.value ?? '';
+  return {
+    defL: lRaw === '' ? null : Number(lRaw),
+    defV: vRaw === '' ? null : Number(vRaw),
+  };
+}
+
+async function writeAdminPredictionItems(person, items) {
+  if (!isAdminSession()) throw new Error('Sin permisos de admin');
+  if (!db) throw new Error('Sin conexión');
+  const { doc, setDoc, serverTimestamp } = firestoreFns;
+  const meta = state.pronosticosMeta[person] || { items: {}, compartirPronosticos: true };
+  await setDoc(doc(db, 'pronosticos', person), {
+    items,
+    compartirPronosticos: meta.compartirPronosticos !== false,
+    actualizado: serverTimestamp(),
+  }, { merge: true });
+}
+
+async function saveAdminPrediction(matchId) {
+  const person = state.adminPredictionPerson;
+  const card = document.querySelector(`.editable-admin-prediction-card[data-match-id="${matchId}"]`);
+  const match = findAdminPredictionMatch(matchId);
+  if (!person || !card || !match) return;
+
+  const lRaw = card.querySelector(`input[name="admin_pred_l_${matchId}"]`)?.value ?? '';
+  const vRaw = card.querySelector(`input[name="admin_pred_v_${matchId}"]`)?.value ?? '';
+  const validated = validateScoreInputs(lRaw, vRaw);
+  if (validated.error) {
+    showToast(validated.error, true);
+    return;
+  }
+
+  const item = { l: validated.gl, v: validated.gv };
+  if (isKnockoutMatch(match)) {
+    if (matchTied(validated.gl, validated.gv)) {
+      const definition = card.querySelector('.definition-choice-btn.active')?.dataset.definition || 'te';
+      const { defL, defV } = readDefinitionScoreFromCard(card);
+      const validatedDefinition = validateDefinitionScore(defL, defV, match);
+      if (validatedDefinition.error) {
+        showToast(validatedDefinition.error, true);
+        return;
+      }
+      item.ganador = validatedDefinition.ganador;
+      item.definicion = definition;
+      item.defL = validatedDefinition.defL;
+      item.defV = validatedDefinition.defV;
+    } else {
+      item.ganador = winnerFromScore(match.local, match.visitante, validated.gl, validated.gv);
+    }
+  }
+
+  try {
+    const meta = state.pronosticosMeta[person] || { items: {} };
+    await writeAdminPredictionItems(person, {
+      ...(meta.items || {}),
+      [String(matchId)]: item,
+    });
+    showToast('Pronóstico guardado', false);
+  } catch (err) {
+    showToast(err.message || 'No se pudo guardar el pronóstico', true);
+  }
+}
+
+async function clearAdminPrediction(matchId) {
+  const person = state.adminPredictionPerson;
+  if (!person) return;
+  const ok = confirm('¿Limpiar este pronóstico?');
+  if (!ok) return;
+  try {
+    const meta = state.pronosticosMeta[person] || { items: {} };
+    const nextItems = { ...(meta.items || {}) };
+    delete nextItems[String(matchId)];
+    await writeAdminPredictionItems(person, nextItems);
+    showToast('Pronóstico limpiado', false);
+  } catch (err) {
+    showToast(err.message || 'No se pudo limpiar el pronóstico', true);
+  }
 }
 
 function handleLiveSyncNow() {
@@ -2188,7 +2458,9 @@ function getCurrentMatchId() {
 }
 
 function activeJumpView() {
-  if (document.getElementById('viewAdmin')?.classList.contains('active')) return 'admin';
+  if (document.getElementById('viewAdmin')?.classList.contains('active')) {
+    return state.adminSection === 'results' ? 'admin' : null;
+  }
   return null;
 }
 
@@ -3242,6 +3514,7 @@ function applyAuthGate() {
 function showAdminView() {
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   document.getElementById('viewAdmin').classList.add('active');
+  renderAdmin();
 }
 
 function renderAll() {
@@ -3564,6 +3837,21 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnFinalesNext')?.addEventListener('click', () => focusFinalesRelative(1));
   document.getElementById('btnFinalesBracketMode')?.addEventListener('click', () => setFinalesMode('bracket'));
   document.getElementById('btnFinalesListMode')?.addEventListener('click', () => setFinalesMode('list'));
+  document.querySelectorAll('.admin-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (state.adminEditingId !== null) {
+        const ok = confirm('Tienes un resultado en edición. ¿Descartarlo y cambiar de sección?');
+        if (!ok) return;
+        state.adminEditingId = null;
+      }
+      state.adminSection = btn.dataset.adminSection === 'predictions' ? 'predictions' : 'results';
+      renderAdmin();
+    });
+  });
+  document.getElementById('adminPredictionPerson')?.addEventListener('change', e => {
+    state.adminPredictionPerson = e.currentTarget.value;
+    renderAdminPredictions();
+  });
 
   let jumpTick = false;
   const onScrollOrResize = () => {

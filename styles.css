@@ -487,6 +487,74 @@ body.intro-playing {
   font-weight: 600;
 }
 
+.admin-sync-hint[hidden] {
+  display: none;
+}
+
+.admin-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #eef1f6;
+}
+
+.admin-tab {
+  min-height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.admin-tab.active {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 12px rgba(20, 18, 31, 0.08);
+}
+
+.admin-predictions-toolbar {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.admin-predictions-toolbar[hidden] {
+  display: none;
+}
+
+.admin-select-label {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-select {
+  width: 100%;
+  min-height: 42px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 0 10px;
+}
+
 
 /* Quiniela sticky bar (title + participant tabs) */
 .quiniela-sticky {
