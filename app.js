@@ -252,8 +252,25 @@ function knockoutTeamsResolved(m) {
 function inferredWinner(m, gl = m?.golesLocal, gv = m?.golesVisitante) {
   const explicit = normalizedWinner(m?.ganador);
   if (explicit) return explicit;
+  if (gl !== null && gv !== null && gl === gv && Number.isInteger(m?.definicionLocal) && Number.isInteger(m?.definicionVisitante)) {
+    return winnerFromScore(m.local, m.visitante, m.definicionLocal, m.definicionVisitante);
+  }
   if (gl === null || gv === null || gl === gv) return null;
   return gl > gv ? m.local : m.visitante;
+}
+
+function inferredPredictionWinner(pr, match) {
+  const explicit = normalizedWinner(pr?.ganador);
+  if (explicit) return explicit;
+  if (!pr || !match) return null;
+  if (pr.golesLocal === null || pr.golesVisitante === null) return null;
+  if (pr.golesLocal === pr.golesVisitante) {
+    if (Number.isInteger(pr.definicionLocal) && Number.isInteger(pr.definicionVisitante)) {
+      return winnerFromScore(match.local, match.visitante, pr.definicionLocal, pr.definicionVisitante);
+    }
+    return null;
+  }
+  return winnerFromScore(match.local, match.visitante, pr.golesLocal, pr.golesVisitante);
 }
 // ============================================================
 // Firebase
@@ -2158,19 +2175,11 @@ function getOutcome(golesL, golesV) {
   return 'E';
 }
 
-function calcPoints(predL, predV, realL, realV, predWinner = null, realWinner = null, knockout = false, local = null, visitante = null) {
+function calcPoints(predL, predV, realL, realV) {
   if (realL === null || realV === null) return null;
   if (predL === null || predV === null) return 0;
   let pts = 0;
-  if (knockout) {
-    const predicted = normalizedWinner(predWinner)
-      || (predL === predV ? null : (predL > predV ? normalizedWinner(local) : normalizedWinner(visitante)))
-      || (predL === predV ? null : getOutcome(predL, predV));
-    const actual = normalizedWinner(realWinner)
-      || (realL === realV ? null : (realL > realV ? normalizedWinner(local) : normalizedWinner(visitante)))
-      || (realL === realV ? null : getOutcome(realL, realV));
-    if (predicted && actual && predicted === actual) pts += 3;
-  } else if (getOutcome(predL, predV) === getOutcome(realL, realV)) {
+  if (getOutcome(predL, predV) === getOutcome(realL, realV)) {
     pts += 3;
   }
   if (predL === realL && predV === realV) pts += 1;
@@ -2195,12 +2204,7 @@ function buildPodio(partidos, participantes, pronosticos) {
           pr.golesLocal,
           pr.golesVisitante,
           m.golesLocal,
-          m.golesVisitante,
-          pr.ganador,
-          inferredWinner(m),
-          isKnockoutMatch(m),
-          m.local,
-          m.visitante
+          m.golesVisitante
         ) || 0;
         total += pts;
         if (pts > 0) aciertos++;
@@ -2600,19 +2604,14 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
     pr.golesLocal,
     pr.golesVisitante,
     m.golesLocal,
-    m.golesVisitante,
-    pr.ganador,
-    inferredWinner(m),
-    isKnockoutMatch(m),
-    m.local,
-    m.visitante
+    m.golesVisitante
   ) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
   const realL = hasRealScore ? m.golesLocal : '–';
   const realV = hasRealScore ? m.golesVisitante : '–';
   const predWinnerChip = hasPred && isKnockoutMatch(m) && matchTied(pr.golesLocal, pr.golesVisitante)
-    ? winnerChipHTML('Pasa', pr.ganador, pr.definicion || 'te', pr.definicionLocal, pr.definicionVisitante)
+    ? winnerChipHTML('Pasa', inferredPredictionWinner(pr, m), pr.definicion || 'te', pr.definicionLocal, pr.definicionVisitante)
     : '';
   const realWinnerChip = hasRealScore && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante)
     ? winnerChipHTML('Pasó', inferredWinner(m), m.definicion, m.definicionLocal, m.definicionVisitante)
@@ -2768,9 +2767,7 @@ function knockoutResolvedMatches(predMap = {}) {
     const local = sourceHome?.winner || base.local || `🏳️ Ganador Partido ${base.sourceA}`;
     const visitante = sourceAway?.winner || base.visitante || `🏳️ Ganador Partido ${base.sourceB}`;
     const match = normalizeKnockoutMatch(base, { local, visitante });
-    const predictedWinner = pr?.ganador || (pr
-      ? winnerFromScore(local, visitante, pr.golesLocal, pr.golesVisitante)
-      : null);
+    const predictedWinner = inferredPredictionWinner(pr, match);
     const actualWinner = matchFinalized(match) ? inferredWinner(match) : null;
     const winner = actualWinner || null;
     match.predictedWinner = predictedWinner;
