@@ -47,6 +47,19 @@
       <span class="status-dot"></span>
       <span id="statusText">Cargando...</span>
     </span>
+    <div class="finales-controls status-finales-controls">
+      <button class="finales-nav-btn" id="btnFinalesPrev" type="button" aria-label="Partido anterior" title="Partido anterior">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+      <button class="finales-current-btn" id="btnFinalesCurrent" type="button">Actual</button>
+      <button class="finales-nav-btn" id="btnFinalesNext" type="button" aria-label="Siguiente partido" title="Siguiente partido">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m9 18 6-6-6-6"/>
+        </svg>
+      </button>
+    </div>
     <button class="status-settings-btn" id="btnQuinielaSettings" type="button" hidden>Ajustes</button>
     <button class="status-audio-pause" id="podioAudioPause" type="button" hidden>Pausar audio</button>
   </div>
@@ -151,21 +164,6 @@
 
     <section class="view" id="viewFinales">
       <div class="finales-shell">
-        <div class="finales-toolbar">
-          <div class="finales-controls">
-            <button class="finales-nav-btn" id="btnFinalesPrev" type="button" aria-label="Partido anterior" title="Partido anterior">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m15 18-6-6 6-6"/>
-              </svg>
-            </button>
-            <button class="finales-current-btn" id="btnFinalesCurrent" type="button">Actual</button>
-            <button class="finales-nav-btn" id="btnFinalesNext" type="button" aria-label="Siguiente partido" title="Siguiente partido">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m9 18 6-6-6-6"/>
-              </svg>
-            </button>
-          </div>
-        </div>
         <div class="person-tabs finales-person-tabs" id="finalesPersonTabs"></div>
         <div class="day-tabs finales-day-tabs" id="finalesDayTabs" hidden></div>
         <div class="finales-viewport" id="finalesViewport">
@@ -235,6 +233,10 @@
   <div class="modal-overlay" id="settingsModal" hidden>
     <div class="modal settings-modal">
       <h3 class="modal-title">Ajustes de quiniela</h3>
+      <div class="settings-live-status">
+        <span class="status-dot ok"></span>
+        <span id="settingsLiveStatusText">En vivo</span>
+      </div>
       <div class="settings-list">
         <div class="settings-row">
           <div>

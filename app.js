@@ -1143,6 +1143,8 @@ function renderShareToggle() {
 
   const show = !!state.session && !isAdminSession()
     && knockoutEnabled() && state.activeView === 'finales';
+  document.body.classList.toggle('finales-status-mode', show);
+  document.body.classList.toggle('finales-list-mode', show && state.finalesMode === 'list');
   if (settingsBtn) settingsBtn.hidden = !show;
   if (!wrap || !toggle || !text) return;
   wrap.hidden = !show;
@@ -1158,6 +1160,7 @@ function renderShareToggle() {
 function openSettingsModal() {
   if (!(state.session && !isAdminSession() && state.activeView === 'finales')) return;
   renderShareToggle();
+  syncSettingsLiveStatus();
   document.getElementById('settingsModal').hidden = false;
 }
 
@@ -3089,6 +3092,7 @@ function renderFinales() {
   document.querySelectorAll('.finales-mode-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.finalesMode === state.finalesMode);
   });
+  document.body.classList.toggle('finales-list-mode', state.finalesMode === 'list');
   document.querySelector('.finales-controls')?.toggleAttribute('hidden', state.finalesMode !== 'bracket');
   viewport?.classList.toggle('is-list-mode', state.finalesMode === 'list');
   board.classList.toggle('is-list-mode', state.finalesMode === 'list');
@@ -3614,10 +3618,17 @@ function renderAll() {
 // ============================================================
 // Status
 // ============================================================
+function syncSettingsLiveStatus() {
+  const source = document.getElementById('statusText');
+  const target = document.getElementById('settingsLiveStatusText');
+  if (source && target) target.textContent = source.textContent || 'En vivo';
+}
+
 function setStatus(text, type = 'loading') {
-  const dot = document.querySelector('.status-dot');
+  const dot = document.querySelector('.status-main .status-dot');
   document.getElementById('statusText').textContent = text;
-  dot.className = 'status-dot' + (type === 'ok' ? ' ok' : type === 'error' ? ' error' : '');
+  if (dot) dot.className = 'status-dot' + (type === 'ok' ? ' ok' : type === 'error' ? ' error' : '');
+  syncSettingsLiveStatus();
 }
 
 function formatTime(date) {
