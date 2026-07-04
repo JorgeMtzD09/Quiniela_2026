@@ -2896,7 +2896,12 @@ function findResolvedKnockoutMatch(matchId) {
 function championInfo(knockoutMatches) {
   const final = knockoutMatches.find(m => m.id === 103);
   const champion = final?.winner || 'Campeón por definir';
-  const quinielaWinner = '-';
+  const leaders = final?.winner
+    ? state.podio.filter(p => p.rank === 1)
+    : [];
+  const quinielaWinner = leaders.length
+    ? leaders.map(p => p.nombre).join(', ')
+    : '-';
   return { champion, quinielaWinner };
 }
 
