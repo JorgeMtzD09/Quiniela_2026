@@ -696,6 +696,24 @@ function matchDatetimeHTML(m) {
   return `<div class="match-datetime">${groupHTML}${dateHTML}</div>`;
 }
 
+function datetimeLocalValue(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function parseDatetimeLocalValue(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function sameMinuteDate(a, b) {
+  if (!a && !b) return true;
+  if (!(a instanceof Date) || !(b instanceof Date)) return false;
+  return Math.floor(a.getTime() / 60000) === Math.floor(b.getTime() / 60000);
+}
+
 function estimatedMatchMinute(m) {
   if (!m?.fecha) return null;
   const elapsed = Math.floor((nowMs() - m.fecha.getTime()) / 60000) + 1;
@@ -1362,12 +1380,12 @@ function subscribeAdmin() {
   );
 }
 
-async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, definicion = null, defL = null, defV = null) {
+async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, definicion = null, defL = null, defV = null, fecha = null) {
   if (!isAdminSession()) throw new Error('Sin permisos de admin');
   if (!db) throw new Error('Sin conexión');
 
   const { doc, updateDoc } = firestoreFns;
-  const m = state.partidos.find(x => x.docId === docId);
+  const m = findAdminMatchByDocId(docId);
 
   let nextStatus;
   // Sin marcador -> pendiente siempre
@@ -1390,6 +1408,9 @@ async function saveMatchResult(docId, gl, gv, estado = null, ganador = null, def
     estado: nextStatus,
     faseEnVivo: nextStatus === MATCH_STATUS.HALFTIME ? 'medio_tiempo' : null,
   };
+  if (fecha instanceof Date && !Number.isNaN(fecha.getTime())) {
+    update.fecha = fecha;
+  }
 
   if (isKnockoutMatch(m)) {
     update.ganador = gl === null || gv === null ? null : normalizedWinner(ganador) || winnerFromScore(m.local, m.visitante, gl, gv);
@@ -1438,6 +1459,7 @@ function buildAdminMatchCard(m) {
   const hasScore = matchHasScore(m);
   const glVal = m.golesLocal != null ? m.golesLocal : '';
   const gvVal = m.golesVisitante != null ? m.golesVisitante : '';
+  const dateVal = datetimeLocalValue(m.fecha);
   const actualWinner = isPlayed && isKnockoutMatch(m) ? inferredWinner(m) : null;
   const teams = `<div class="match-teams">${teamBlock(m.local, 'home', actualWinner)}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away', actualWinner)}</div>`;
   const statusHTML = isPlayed && hasScore
@@ -1468,6 +1490,10 @@ function buildAdminMatchCard(m) {
     <div class="match-card form-card editable-admin-card ${isPlayed ? 'admin-played' : 'admin-pending'}" data-doc-id="${m.docId}">
       ${matchDatetimeHTML(m)}
       ${teams}
+      <label class="admin-datetime-field">
+        <span>Fecha y hora (MX)</span>
+        <input class="admin-datetime-input" type="datetime-local" name="admin_fecha_${m.docId}" value="${dateVal}">
+      </label>
       <div class="form-score-row">
         <div class="form-score-field">
           <input class="form-score-input admin-score-input" type="number" min="0" max="20" step="1"
@@ -1517,6 +1543,23 @@ function renderAdminMatchesByDay(partidos) {
         ${g.matches.map(m => buildAdminMatchCard(m)).join('')}
       </div>
     </div>`).join('');
+}
+
+function adminResolvedMatches() {
+  const resolvedById = new Map(
+    knockoutResolvedMatches().map(match => [Number(match.id), match])
+  );
+  return state.partidos.map(match => {
+    if (!isKnockoutMatch(match)) return match;
+    const resolved = resolvedById.get(Number(match.id));
+    return resolved ? { ...match, ...resolved, docId: match.docId } : match;
+  });
+}
+
+function findAdminMatchByDocId(docId) {
+  return adminResolvedMatches().find(match => match.docId === docId)
+    || state.partidos.find(match => match.docId === docId)
+    || null;
 }
 
 function validateScoreInputs(lRaw, vRaw) {
@@ -1664,7 +1707,7 @@ function attachAdminListeners() {
 }
 
 async function setAdminMatchStatus(docId, status) {
-  const m = state.partidos.find(x => x.docId === docId);
+  const m = findAdminMatchByDocId(docId);
   // validar partido y estado
   if (!m || !isValidMatchStatus(status)) return;
   const currentStatus = normalizeMatchStatus(m);
@@ -1732,13 +1775,15 @@ function exitAdminEditMode(restore) {
     if (actions) actions.hidden = true;
   });
   if (restore && docId != null) {
-    const m = state.partidos.find(x => x.docId === docId);
+    const m = findAdminMatchByDocId(docId);
     const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
     if (card && m) {
       const lInp = card.querySelector(`input[name="admin_l_${docId}"]`);
       const vInp = card.querySelector(`input[name="admin_v_${docId}"]`);
+      const fechaInp = card.querySelector(`input[name="admin_fecha_${docId}"]`);
       if (lInp) lInp.value = m.golesLocal != null ? m.golesLocal : '';
       if (vInp) vInp.value = m.golesVisitante != null ? m.golesVisitante : '';
+      if (fechaInp) fechaInp.value = datetimeLocalValue(m.fecha);
     }
   }
 }
@@ -1748,11 +1793,22 @@ function openAdminConfirm(docId, estadoOverride = null) {
   if (!card) return;
   const lRaw = card.querySelector(`input[name="admin_l_${docId}"]`).value;
   const vRaw = card.querySelector(`input[name="admin_v_${docId}"]`).value;
+  const fechaRaw = card.querySelector(`input[name="admin_fecha_${docId}"]`)?.value || '';
 
-  const validated = validateScoreInputs(lRaw, vRaw);
-  if (validated.error) { alert(validated.error); return; }
-
-  const m = state.partidos.find(x => x.docId === docId);
+  const m = findAdminMatchByDocId(docId);
+  const fecha = parseDatetimeLocalValue(fechaRaw);
+  if (!fecha) { alert('Elige una fecha y hora válida.'); return; }
+  const hasAnyScore = lRaw !== '' || vRaw !== '';
+  let validated = { gl: null, gv: null };
+  if (hasAnyScore) {
+    validated = validateScoreInputs(lRaw, vRaw);
+    if (validated.error) { alert(validated.error); return; }
+  }
+  const scheduleChanged = !sameMinuteDate(m?.fecha, fecha);
+  if (!hasAnyScore && !scheduleChanged) {
+    showToast('No hay cambios por guardar.', true);
+    return;
+  }
   // Determinar el estado que se intenta guardar desde los botones activos. Si no hay, usa estado actual.
   let estado = estadoOverride || card.querySelector('.admin-phase-opt.active')?.dataset.status;
   if (!isValidMatchStatus(estado)) {
@@ -1767,6 +1823,7 @@ function openAdminConfirm(docId, estadoOverride = null) {
     gl: validated.gl,
     gv: validated.gv,
     estado,
+    fecha,
     ganador: needsWinner ? null : inferred,
     definicion: needsWinner ? 'te' : null,
     defL: null,
@@ -1778,19 +1835,21 @@ function openAdminConfirm(docId, estadoOverride = null) {
   if (warnEl) warnEl.textContent = needsWinner
     ? 'Elige si fue en tiempo extra o penales y captura el marcador de la definición.'
     : 'Puedes corregir el resultado las veces que necesites.';
+  const scoreLabel = hasAnyScore ? `${validated.gl} - ${validated.gv}` : 'Sin marcador';
   document.getElementById('modalBody').innerHTML = `
     <div class="modal-match">
       <span class="modal-team">${m.local}</span>
-      <span class="modal-score">${validated.gl} - ${validated.gv}</span>
+      <span class="modal-score">${scoreLabel}</span>
       <span class="modal-team">${m.visitante}</span>
     </div>
+    ${scheduleChanged ? `<p class="modal-small-note">${formatMatchDate(m.fecha)} → ${formatMatchDate(fecha)}</p>` : ''}
     ${needsWinner ? `${definitionChoiceHTML('te', 'admin-definition')}${definitionScoreHTML(m)}` : ''}`;
   attachWinnerChoiceListeners(document.getElementById('modalBody'));
   document.getElementById('confirmModal').hidden = false;
 }
 
 function openAdminResetConfirm(docId) {
-  const m = state.partidos.find(x => x.docId === docId);
+  const m = findAdminMatchByDocId(docId);
   if (!m) return;
   state.adminPendingSave = {
     docId,
@@ -1819,12 +1878,12 @@ function openAdminResetConfirm(docId) {
 async function handleAdminModalConfirm() {
   const pending = state.adminPendingSave;
   if (!pending) return;
-  const { docId, gl, gv, reset, estado } = pending;
+  const { docId, gl, gv, reset, estado, fecha } = pending;
   const btn = document.getElementById('modalConfirm');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
   try {
-    const match = state.partidos.find(x => x.docId === docId);
+    const match = findAdminMatchByDocId(docId);
     let winnerToSave = pending.ganador;
     if (!reset && isKnockoutMatch(match) && matchTied(gl, gv) && !pending.definicion) {
       showToast('Elige si fue en tiempo extra o penales.', true);
@@ -1838,7 +1897,7 @@ async function handleAdminModalConfirm() {
       }
       winnerToSave = validatedDefinition.ganador;
     }
-    await saveMatchResult(docId, gl, gv, estado, winnerToSave, pending.definicion, pending.defL, pending.defV);
+    await saveMatchResult(docId, gl, gv, estado, winnerToSave, pending.definicion, pending.defL, pending.defV, fecha);
     state.adminPendingSave = null;
     state.adminEditingId = null;
     closeModal();
@@ -1884,7 +1943,7 @@ function renderAdmin() {
       el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando partidos...</div>';
       return;
     }
-    el.innerHTML = renderAdminMatchesByDay(state.partidos);
+    el.innerHTML = renderAdminMatchesByDay(adminResolvedMatches());
     attachAdminListeners();
   }
   updateJumpButton();

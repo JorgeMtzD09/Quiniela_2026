@@ -1458,6 +1458,14 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
   white-space: nowrap;
 }
 
+.modal-small-note {
+  margin: 10px 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+}
+
 .modal-warn {
   font-size: 0.8rem;
   color: var(--text-muted);
@@ -2526,6 +2534,40 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
   font-weight: 700;
   color: var(--text-muted);
   padding-bottom: 10px;
+}
+
+.admin-datetime-field {
+  display: grid;
+  gap: 6px;
+  margin: 10px 14px 2px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.admin-datetime-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 10px;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  background: #fff;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.admin-datetime-input:focus {
+  outline: none;
+  border-color: var(--wc-blue);
+  box-shadow: 0 0 0 3px rgba(30, 111, 217, 0.15);
+}
+
+.admin-datetime-input:disabled {
+  color: var(--text-muted);
+  background: #f3f4f6;
 }
 
 .match-card.editable-card .form-score-sep {

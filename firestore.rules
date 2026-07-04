@@ -41,7 +41,8 @@ service cloud.firestore {
                'ganador',
                'definicion',
                'defL',
-               'defV'
+               'defV',
+               'fecha'
              ])
         && (
           !request.resource.data.keys().hasAny(['estado']) ||
@@ -66,6 +67,10 @@ service cloud.firestore {
           !request.resource.data.keys().hasAny(['defV']) ||
           request.resource.data.defV == null ||
           request.resource.data.defV is number
+        )
+        && (
+          !request.resource.data.keys().hasAny(['fecha']) ||
+          request.resource.data.fecha is timestamp
         );
       allow create, delete: if false;
     }
