@@ -2246,6 +2246,7 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
   position: relative;
   min-height: var(--bracket-inner-height);
   width: var(--bracket-card-width);
+  overflow: visible;
 }
 
 .bracket-round-title {
@@ -2268,6 +2269,7 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
 .bracket-round-matches {
   position: relative;
   height: var(--bracket-inner-height);
+  overflow: visible;
 }
 
 .bracket-match {
@@ -2385,21 +2387,24 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
 .finales-cup-stage {
   position: absolute;
   top: 500px;
-  left: 0;
-  right: 0;
+  left: 50%;
+  right: auto;
   z-index: 3;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 22px;
+  width: 920px;
+  margin: 0;
+  transform: translateX(-50%);
 }
 
 .finales-winner-card,
 .finales-champion {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid rgba(34, 197, 94, 0.36);
-  border-radius: 10px;
+  padding: 36px 46px;
+  border: 2px solid rgba(34, 197, 94, 0.42);
+  border-radius: 24px;
   background: rgba(5, 6, 11, 0.58);
   box-shadow: 0 0 24px rgba(34, 197, 94, 0.12);
   text-align: center;
@@ -2414,7 +2419,7 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
 .finales-winner-label,
 .finales-champion-label {
   color: #7dd3fc;
-  font-size: 0.62rem;
+  font-size: 1.3rem;
   font-weight: 900;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2429,32 +2434,32 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin-top: 5px;
-  font-size: 0.98rem;
+  gap: 18px;
+  margin-top: 16px;
+  font-size: 3.45rem;
   font-weight: 950;
   line-height: 1.1;
 }
 
 .finales-quiniela-name {
   color: #fff;
-  font-size: 1.04rem;
+  font-size: 3.7rem;
 }
 
 .finales-champion-flag {
-  font-size: 1.3rem;
+  font-size: 3.7rem;
 }
 
 .finales-crown {
   color: var(--gold);
-  font-size: 1.3rem;
+  font-size: 3.55rem;
   filter: drop-shadow(0 0 8px rgba(245, 197, 66, 0.48));
 }
 
 .finales-cup-wrap {
   position: relative;
-  width: 210px;
-  height: 310px;
+  width: 260px;
+  height: 380px;
   display: grid;
   place-items: center;
   border-radius: 12px;
@@ -2466,8 +2471,8 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
 
 .finales-cup-img {
   display: block;
-  width: 178px;
-  height: 286px;
+  width: 220px;
+  height: 350px;
   object-fit: contain;
   filter: drop-shadow(0 0 18px rgba(245, 197, 66, 0.72));
   animation: cup-horizontal-spin 4s ease-in-out infinite;
