@@ -206,7 +206,10 @@ function matchInLiveWindow(m) {
  */
 function normalizeMatchStatus(m) {
   // Si ya tiene un estado válido, úsalo tal cual.
-  if (isValidMatchStatus(m?.estado)) return m.estado;
+  if (isValidMatchStatus(m?.estado)) {
+    if (m.estado === MATCH_STATUS.PENDING && matchInLiveWindow(m)) return MATCH_STATUS.LIVE;
+    return m.estado;
+  }
   // Compatibilidad con faseEnVivo: medio tiempo.
   if (m?.faseEnVivo === 'medio_tiempo') return MATCH_STATUS.HALFTIME;
   // Compatibilidad con datos antiguos: si se capturó marcador, se considera finalizado.
@@ -946,7 +949,7 @@ async function syncLiveScoresFromClient({ force = false, silent = false } = {}) 
   const last = Number(localStorage.getItem(CLIENT_LIVE_SYNC_KEY) || 0);
   if (!force && now - last < CLIENT_LIVE_SYNC_COOLDOWN_MS) return false;
 
-  const relevantMatches = state.partidos.filter(matchRelevantForClientSync);
+  const relevantMatches = resolvedMatchesForSystem().filter(matchRelevantForClientSync);
   const dates = clientSyncDates(relevantMatches);
   if (!dates.length) return false;
 
@@ -1545,7 +1548,7 @@ function renderAdminMatchesByDay(partidos) {
     </div>`).join('');
 }
 
-function adminResolvedMatches() {
+function resolvedMatchesForSystem() {
   const resolvedById = new Map(
     knockoutResolvedMatches().map(match => [Number(match.id), match])
   );
@@ -1554,6 +1557,10 @@ function adminResolvedMatches() {
     const resolved = resolvedById.get(Number(match.id));
     return resolved ? { ...match, ...resolved, docId: match.docId } : match;
   });
+}
+
+function adminResolvedMatches() {
+  return resolvedMatchesForSystem();
 }
 
 function findAdminMatchByDocId(docId) {
