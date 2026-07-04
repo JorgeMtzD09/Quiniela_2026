@@ -1674,7 +1674,7 @@ async function setAdminMatchStatus(docId, status) {
     return;
   }
   if (status === MATCH_STATUS.FINAL && isKnockoutMatch(m) && matchTied(m.golesLocal, m.golesVisitante) && !m.ganador) {
-    showToast('Guarda el resultado y quién avanzó.', true);
+    openAdminConfirm(docId, status);
     return;
   }
   // No se puede volver a pendiente si ya existe marcador; usar Restaurar
@@ -1742,7 +1742,7 @@ function exitAdminEditMode(restore) {
   }
 }
 
-function openAdminConfirm(docId) {
+function openAdminConfirm(docId, estadoOverride = null) {
   const card = document.querySelector(`.editable-admin-card[data-doc-id="${docId}"]`);
   if (!card) return;
   const lRaw = card.querySelector(`input[name="admin_l_${docId}"]`).value;
@@ -1753,7 +1753,7 @@ function openAdminConfirm(docId) {
 
   const m = state.partidos.find(x => x.docId === docId);
   // Determinar el estado que se intenta guardar desde los botones activos. Si no hay, usa estado actual.
-  let estado = card.querySelector('.admin-phase-opt.active')?.dataset.status;
+  let estado = estadoOverride || card.querySelector('.admin-phase-opt.active')?.dataset.status;
   if (!isValidMatchStatus(estado)) {
     estado = normalizeMatchStatus(m);
   }
@@ -3867,6 +3867,9 @@ function switchView(viewKey) {
   } else {
     disposePodiumScene();
     stopPodioMusic();
+  }
+  if (target === 'quiniela' || target === 'finales') {
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   }
   updateJumpButton();
 }
