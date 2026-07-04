@@ -18,6 +18,7 @@ import {
 export const CONFIG = {
   features: {
     knockoutEnabled: true,
+    knockoutScoreByAdvancingTeam: true,
   },
   firebase: {
     apiKey: 'AIzaSyDwEIfkoudtZ6QQge3agKMqs932kg-SHEE',
@@ -2181,6 +2182,10 @@ async function saveSingleMatch(matchId, gl, gv, ganador = null, definicion = nul
 // ============================================================
 // Scoring
 // ============================================================
+function scoreByAdvancingTeamEnabled() {
+  return CONFIG.features?.knockoutScoreByAdvancingTeam !== false;
+}
+
 function getOutcome(golesL, golesV) {
   if (golesL === null || golesV === null) return null;
   if (golesL > golesV) return 'L';
@@ -2188,15 +2193,46 @@ function getOutcome(golesL, golesV) {
   return 'E';
 }
 
-function calcPoints(predL, predV, realL, realV) {
+function calcKnockoutPointsLegacy(pr, match) {
+  if (!pr || !matchHasScore(match)) return 0;
+  const predL = pr.golesLocal;
+  const predV = pr.golesVisitante;
+  const realL = match.golesLocal;
+  const realV = match.golesVisitante;
   if (realL === null || realV === null) return null;
   if (predL === null || predV === null) return 0;
+
   let pts = 0;
   if (getOutcome(predL, predV) === getOutcome(realL, realV)) {
     pts += 3;
   }
   if (predL === realL && predV === realV) pts += 1;
   return pts;
+}
+
+function calcKnockoutPointsByAdvancingTeam(pr, match) {
+  if (!pr || !matchHasScore(match)) return 0;
+  const predL = pr.golesLocal;
+  const predV = pr.golesVisitante;
+  const realL = match.golesLocal;
+  const realV = match.golesVisitante;
+  if (realL === null || realV === null) return null;
+  if (predL === null || predV === null) return 0;
+
+  let pts = 0;
+  const predWinner = normalizedWinner(inferredPredictionWinner(pr, match));
+  const realWinner = normalizedWinner(inferredWinner(match));
+  if (predWinner && realWinner && predWinner === realWinner) {
+    pts += 3;
+  }
+  if (predL === realL && predV === realV) pts += 1;
+  return pts;
+}
+
+function calcKnockoutPoints(pr, match) {
+  return scoreByAdvancingTeamEnabled()
+    ? calcKnockoutPointsByAdvancingTeam(pr, match)
+    : calcKnockoutPointsLegacy(pr, match);
 }
 
 function buildPodio(partidos, participantes, pronosticos) {
@@ -2213,12 +2249,7 @@ function buildPodio(partidos, participantes, pronosticos) {
       played++;
       const pr = predMap[m.id];
       if (pr) {
-        const pts = calcPoints(
-          pr.golesLocal,
-          pr.golesVisitante,
-          m.golesLocal,
-          m.golesVisitante
-        ) || 0;
+        const pts = calcKnockoutPoints(pr, m) || 0;
         total += pts;
         if (pts > 0) aciertos++;
       }
@@ -2613,12 +2644,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const hasPred = canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const hasPrivatePred = !canSeePrediction && pr && pr.golesLocal !== null && pr.golesVisitante !== null;
   const hasRealScore = matchHasScore(m);
-  const pts = isPlayed && hasPred ? calcPoints(
-    pr.golesLocal,
-    pr.golesVisitante,
-    m.golesLocal,
-    m.golesVisitante
-  ) : 0;
+  const pts = isPlayed && hasPred ? calcKnockoutPoints(pr, m) : 0;
   const predL = hasPred ? pr.golesLocal : '–';
   const predV = hasPred ? pr.golesVisitante : '–';
   const realL = hasRealScore ? m.golesLocal : '–';
