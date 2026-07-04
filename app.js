@@ -60,7 +60,7 @@ const KNOCKOUT_ID_START = 73;
 const KNOCKOUT_ZOOM_MAX = 1.55;
 const KNOCKOUT_CARD_WIDTH = 330;
 const KNOCKOUT_COL_GAP = 96;
-const KNOCKOUT_SLOT_HEIGHT = 370;
+const KNOCKOUT_SLOT_HEIGHT = 400;
 const KNOCKOUT_CARD_MID = 122;
 const KNOCKOUT_BOARD_PADDING_X = 36;
 const KNOCKOUT_BOARD_PADDING_TOP = 82;
@@ -69,7 +69,7 @@ const KNOCKOUT_WHEEL_ZOOM_SPEED = 0.006;
 const KNOCKOUT_FOCUS_ZOOM = 1.05;
 
 const KNOCKOUT_ROUNDS = [
-  { key: 'r32', title: 'Round de 32', className: 'round-r32' },
+  { key: 'r32', title: 'De 32', className: 'round-r32' },
   { key: 'r16', title: 'Octavos', className: 'round-r16' },
   { key: 'qf', title: 'Cuartos', className: 'round-qf' },
   { key: 'sf', title: 'Semifinales', className: 'round-sf' },
@@ -77,7 +77,7 @@ const KNOCKOUT_ROUNDS = [
   { key: 'sf-right', title: 'Semifinales', className: 'round-sf' },
   { key: 'qf-right', title: 'Cuartos', className: 'round-qf' },
   { key: 'r16-right', title: 'Octavos', className: 'round-r16' },
-  { key: 'r32-right', title: 'Round de 32', className: 'round-r32' },
+  { key: 'r32-right', title: 'De 32', className: 'round-r32' },
 ];
 
 const KNOCKOUT_BASE_MATCHES = [
@@ -351,6 +351,7 @@ let state = {
 let matchLockTimer = null;
 let liveMinuteTimer = null;
 let lastRenderedLiveMinuteLabel = '';
+let clientLiveSyncDisabledForSession = false;
 let finalesGesturesReady = false;
 let finalesPinch = null;
 
@@ -688,6 +689,16 @@ function formatMatchDate(d) {
   return formatDateCDMX(d);
 }
 
+function formatMatchDateParts(d) {
+  const formatted = formatMatchDate(d);
+  const parts = formatted.split(',');
+  if (parts.length < 2) return { date: formatted, time: '' };
+  return {
+    date: parts[0].trim(),
+    time: parts.slice(1).join(',').trim(),
+  };
+}
+
 function matchDatetimeHTML(m) {
   const letter = getMatchGroup(m.local, m.visitante);
   const groupHTML = letter
@@ -695,7 +706,12 @@ function matchDatetimeHTML(m) {
     : m.roundTitle
       ? `<span class="match-group-chip">${m.roundTitle}</span>`
     : '';
-  const dateHTML = `<span class="match-datetime-text">${formatMatchDate(m.fecha)}</span>`;
+  const dateParts = formatMatchDateParts(m.fecha);
+  const dateHTML = `
+    <span class="match-datetime-text">
+      <span class="match-date-line">${dateParts.date}</span>
+      ${dateParts.time ? `<span class="match-time-line">${dateParts.time}</span>` : ''}
+    </span>`;
   return `<div class="match-datetime">${groupHTML}${dateHTML}</div>`;
 }
 
@@ -794,6 +810,22 @@ function clientSyncDates(matches) {
     .map(cdmxDateKey))];
 }
 
+function apiFootballErrorMessage(err) {
+  return String(err?.message || err || '');
+}
+
+function isApiFootballQuotaError(err) {
+  return /request limit|reached the request limit|quota|too many requests|API-Football 429/i.test(apiFootballErrorMessage(err));
+}
+
+function isApiFootballSeasonBlockedError(err) {
+  return /free plans do not have access to this season|do not have access to this season|try from 2022 to 2024|API-Football 403/i.test(apiFootballErrorMessage(err));
+}
+
+function isApiFootballHardBlockError(err) {
+  return isApiFootballQuotaError(err) || isApiFootballSeasonBlockedError(err);
+}
+
 function fixtureTeams(fixture) {
   return {
     home: fixture?.teams?.home?.name || '',
@@ -866,6 +898,7 @@ async function fetchClientLiveFixtures(dates) {
       appendFixtures(scoped);
     } catch (err) {
       console.warn(`No se pudo leer API-Football filtrado para ${date}:`, err);
+      if (isApiFootballHardBlockError(err)) throw err;
     }
 
     if (!scoped.length) {
@@ -946,6 +979,7 @@ async function syncLiveScoresFromClient({ force = false, silent = false } = {}) 
   if (!cfg.enabled || !cfg.apiKey || !db || !firestoreFns || !state.partidos.length) return false;
 
   const now = Date.now();
+  if (!force && clientLiveSyncDisabledForSession) return false;
   const last = Number(localStorage.getItem(CLIENT_LIVE_SYNC_KEY) || 0);
   if (!force && now - last < CLIENT_LIVE_SYNC_COOLDOWN_MS) return false;
 
@@ -953,8 +987,14 @@ async function syncLiveScoresFromClient({ force = false, silent = false } = {}) 
   const dates = clientSyncDates(relevantMatches);
   if (!dates.length) return false;
 
-  const providerFixtures = await fetchClientLiveFixtures(dates);
   localStorage.setItem(CLIENT_LIVE_SYNC_KEY, String(now));
+  let providerFixtures;
+  try {
+    providerFixtures = await fetchClientLiveFixtures(dates);
+  } catch (err) {
+    if (!force) clientLiveSyncDisabledForSession = true;
+    throw err;
+  }
   const { doc, updateDoc, serverTimestamp } = firestoreFns;
 
   let writes = 0;
@@ -980,9 +1020,11 @@ async function syncLiveScoresFromClient({ force = false, silent = false } = {}) 
 
 function handleClientLiveSyncError(err) {
   console.warn('No se pudo actualizar marcador en cliente:', err);
-  const msg = String(err?.message || '');
-  if (/request limit|requests/i.test(msg)) {
+  clientLiveSyncDisabledForSession = true;
+  if (isApiFootballQuotaError(err)) {
     setStatus('API de marcadores sin cuota por hoy', 'error');
+  } else if (isApiFootballSeasonBlockedError(err)) {
+    setStatus('API de marcadores no disponible para temporada 2026', 'error');
   }
 }
 
@@ -1270,7 +1312,6 @@ function subscribeFirestore() {
   let partidos = [];
   let participantes = [];
   let pronosticosDocs = [];
-  let didInitialClientSync = false;
 
   const maybeUpdate = () => {
     if (!partidos.length || !participantes.length) return;
@@ -1278,9 +1319,7 @@ function subscribeFirestore() {
     applyData(partidos, participantes, pronosticos, meta);
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
-    const force = !didInitialClientSync;
-    didInitialClientSync = true;
-    syncLiveScoresFromClient({ force, silent: true }).catch(handleClientLiveSyncError);
+    syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
   };
 
   unsubscribers.push(
@@ -2202,7 +2241,14 @@ function handleLiveSyncNow() {
     })
     .catch(err => {
       console.error(err);
-      showToast('No se pudo actualizar desde API-Football.', true);
+      handleClientLiveSyncError(err);
+      if (isApiFootballQuotaError(err)) {
+        showToast('API-Football ya no tiene cuota por hoy.', true);
+      } else if (isApiFootballSeasonBlockedError(err)) {
+        showToast('Tu plan de API-Football no permite consultar temporada 2026.', true);
+      } else {
+        showToast('No se pudo actualizar desde API-Football.', true);
+      }
     });
 }
 
@@ -2687,13 +2733,16 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const saved = savedItems[String(m.id)];
   const pr = predMap[m.id];
   const actualWinner = isPlayed && isKnockoutMatch(m) ? inferredWinner(m) : null;
-  const teams = `<div class="match-teams">${teamBlock(m.local, 'home', actualWinner)}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away', actualWinner)}</div>`;
+  const teams = `
+        <div class="client-matchup-panel">
+          <div class="match-teams">${teamBlock(m.local, 'home', actualWinner)}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away', actualWinner)}</div>
+        </div>`;
   const teamsResolved = knockoutTeamsResolved(m);
 
   // Editable: es tu propia quiniela, partido no jugado, sin pronóstico guardado y antes del kickoff
   if (isOwn && !isPlayed && !saved && !matchStarted(m) && teamsResolved) {
     return `
-      <div class="match-card form-card editable-card" data-match-id="${m.id}">
+      <div class="match-card client-match-card form-card editable-card" data-match-id="${m.id}">
         ${matchDatetimeHTML(m)}
         ${teams}
         <div class="form-score-row">
@@ -2749,7 +2798,7 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   }
 
   return `
-    <div class="match-card ${stateClass}" data-match-id="${m.id}">
+    <div class="match-card client-match-card ${stateClass}" data-match-id="${m.id}">
       ${matchDatetimeHTML(m)}
       ${teams}
       ${hasPrivatePred ? `
