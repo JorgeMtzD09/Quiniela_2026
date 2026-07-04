@@ -1438,7 +1438,8 @@ function buildAdminMatchCard(m) {
   const hasScore = matchHasScore(m);
   const glVal = m.golesLocal != null ? m.golesLocal : '';
   const gvVal = m.golesVisitante != null ? m.golesVisitante : '';
-  const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+  const actualWinner = isPlayed && isKnockoutMatch(m) ? inferredWinner(m) : null;
+  const teams = `<div class="match-teams">${teamBlock(m.local, 'home', actualWinner)}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away', actualWinner)}</div>`;
   const statusHTML = isPlayed && hasScore
     ? `<span class="match-points pts-saved">Finalizado: ${m.golesLocal} - ${m.golesVisitante}</span>`
     : isHalftime
@@ -2276,12 +2277,16 @@ function splitFlag(str) {
   return { flag: str.slice(0, m.index).trim(), name: str.slice(m.index).trim() };
 }
 
-function teamBlock(str, side) {
+function teamBlock(str, side, winner = null) {
   const { flag, name } = splitFlag(str);
+  const isWinner = normalizedWinner(str) === normalizedWinner(winner);
   return `
-    <div class="match-team ${side}">
+    <div class="match-team ${side}${isWinner ? ' is-winner' : ''}">
       <span class="team-flag">${flag}</span>
-      <span class="team-name">${name}</span>
+      <span class="team-name">
+        <span class="team-name-text">${name}</span>
+        ${isWinner ? '<span class="team-winner-check" aria-label="Ganador">✓</span>' : ''}
+      </span>
     </div>`;
 }
 
@@ -2615,7 +2620,8 @@ function buildMatchCard(m, { isOwn, savedItems, predMap, sharesPredictions }) {
   const canSeePrediction = canViewPredictionForMatch(m, { isOwn, sharesPredictions });
   const saved = savedItems[String(m.id)];
   const pr = predMap[m.id];
-  const teams = `<div class="match-teams">${teamBlock(m.local, 'home')}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away')}</div>`;
+  const actualWinner = isPlayed && isKnockoutMatch(m) ? inferredWinner(m) : null;
+  const teams = `<div class="match-teams">${teamBlock(m.local, 'home', actualWinner)}<span class="match-vs">vs</span>${teamBlock(m.visitante, 'away', actualWinner)}</div>`;
   const teamsResolved = knockoutTeamsResolved(m);
 
   // Editable: es tu propia quiniela, partido no jugado, sin pronóstico guardado y antes del kickoff

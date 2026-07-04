@@ -1043,12 +1043,39 @@ body.finales-status-mode .status-finales-controls .finales-current-btn:not(:disa
 }
 
 .team-name {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 5px;
   font-size: 0.95rem;
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+.team-name-text {
+  min-width: 0;
+}
+
+.team-winner-check {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #16a34a;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 2px 6px rgba(22, 163, 74, 0.28),
+    0 0 0 2px rgba(22, 163, 74, 0.12);
+  font-size: 0.72rem;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .match-vs {
