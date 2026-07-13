@@ -245,7 +245,8 @@ function normalizedWinner(value) {
 }
 
 function isPlaceholderTeam(team) {
-  return normalizedWinner(team)?.includes('Ganador Partido') || false;
+  const normalized = normalizedWinner(team);
+  return normalized?.includes('Ganador Partido') || normalized?.includes('Perdedor Partido') || false;
 }
 
 function knockoutTeamsResolved(m) {
@@ -2012,7 +2013,7 @@ function renderAdminShell() {
 function adminPredictionMatches() {
   return state.partidos
     .filter(isKnockoutMatch)
-    .sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+    .sort(compareMatchesChronologically);
 }
 
 function ensureAdminPredictionPerson() {
@@ -2082,7 +2083,7 @@ function renderAdminPredictions() {
   preds.forEach(pr => { predMap[pr.id] = pr; });
   const matches = knockoutResolvedMatches(predMap)
     .filter(m => adminPredictionMatches().some(x => x.id === m.id))
-    .sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+    .sort(compareMatchesChronologically);
 
   el.innerHTML = renderAdminPredictionMatchesByDay(matches, predMap, savedItems);
   attachAdminPredictionListeners();
@@ -2106,7 +2107,7 @@ function renderAdminPredictionMatchesByDay(matches, predMap, savedItems) {
   const groups = [];
   const indexByKey = new Map();
   const SIN_FECHA = '__sin_fecha__';
-  const ordered = [...matches].sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+  const ordered = [...matches].sort(compareMatchesChronologically);
   for (const m of ordered) {
     const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
     if (!indexByKey.has(key)) {
@@ -2834,7 +2835,25 @@ function canViewPredictionForMatch(match, { isOwn, sharesPredictions }) {
 }
 
 function knockoutRoundTitle(roundKey) {
+  if (roundKey === 'third') return 'Tercer lugar';
   return KNOCKOUT_ROUNDS.find(r => r.key === roundKey)?.title || 'Fase final';
+}
+
+function isBracketRound(roundKey) {
+  return KNOCKOUT_ROUNDS.some(r => r.key === roundKey);
+}
+
+function isFinalesRound(roundKey) {
+  return isBracketRound(roundKey) || roundKey === 'third';
+}
+
+function matchTimeValue(match) {
+  const time = match?.fecha instanceof Date ? match.fecha.getTime() : NaN;
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+}
+
+function compareMatchesChronologically(a, b) {
+  return matchTimeValue(a) - matchTimeValue(b) || Number(a.id) - Number(b.id);
 }
 
 function normalizeKnockoutMatch(base, overrides = {}) {
@@ -2894,6 +2913,14 @@ function winnerFromScore(local, visitante, gl, gv) {
   return gl > gv ? local : visitante;
 }
 
+function loserFromWinner(match, winner) {
+  const normalized = normalizedWinner(winner);
+  if (!match || !normalized) return null;
+  if (normalizedWinner(match.local) === normalized) return match.visitante;
+  if (normalizedWinner(match.visitante) === normalized) return match.local;
+  return null;
+}
+
 function winnerDefinitionText(definicion) {
   if (definicion === 'penales') return 'Penales';
   if (definicion === 'te') return 'Tiempo Extra';
@@ -2924,15 +2951,19 @@ function knockoutResolvedMatches(predMap = {}) {
     const sourceHome = base.sourceA ? resolved.get(base.sourceA) : null;
     const sourceAway = base.sourceB ? resolved.get(base.sourceB) : null;
     const pr = predMap[base.id];
-    const local = sourceHome?.winner || base.local || `🏳️ Ganador Partido ${base.sourceA}`;
-    const visitante = sourceAway?.winner || base.visitante || `🏳️ Ganador Partido ${base.sourceB}`;
+    const sourceAResult = base.round === 'third' ? sourceHome?.loser : sourceHome?.winner;
+    const sourceBResult = base.round === 'third' ? sourceAway?.loser : sourceAway?.winner;
+    const sourceLabel = base.round === 'third' ? 'Perdedor' : 'Ganador';
+    const local = sourceAResult || base.local || `🏳️ ${sourceLabel} Partido ${base.sourceA}`;
+    const visitante = sourceBResult || base.visitante || `🏳️ ${sourceLabel} Partido ${base.sourceB}`;
     const match = normalizeKnockoutMatch(base, { local, visitante });
     const predictedWinner = inferredPredictionWinner(pr, match);
     const actualWinner = matchFinalized(match) ? inferredWinner(match) : null;
     const winner = actualWinner || null;
+    const loser = loserFromWinner(match, winner);
     match.predictedWinner = predictedWinner;
     match.actualWinner = actualWinner;
-    resolved.set(base.id, { ...match, winner });
+    resolved.set(base.id, { ...match, winner, loser });
   }
   return sourceMatches.map(base => resolved.get(base.id));
 }
@@ -3003,10 +3034,12 @@ function knockoutTop(match) {
   if (round === 'r16' || round === 'r16-right') return (order * 2 + 0.5) * KNOCKOUT_SLOT_HEIGHT;
   if (round === 'qf' || round === 'qf-right') return (order * 4 + 1.5) * KNOCKOUT_SLOT_HEIGHT;
   if (round === 'sf' || round === 'sf-right') return 3.5 * KNOCKOUT_SLOT_HEIGHT;
+  if (round === 'third') return 4.42 * KNOCKOUT_SLOT_HEIGHT;
   return 3.5 * KNOCKOUT_SLOT_HEIGHT;
 }
 
 function knockoutColumnIndex(roundKey) {
+  if (roundKey === 'third') return knockoutColumnIndex('final');
   return KNOCKOUT_ROUNDS.findIndex(r => r.key === roundKey);
 }
 
@@ -3034,6 +3067,7 @@ function buildKnockoutConnectors(knockoutMatches) {
   const byId = new Map(knockoutMatches.map(m => [m.id, m]));
   const paths = [];
   for (const match of knockoutMatches) {
+    if (match.round === 'third') continue;
     if (!match.sourceA || !match.sourceB) continue;
     const sourceA = byId.get(match.sourceA);
     const sourceB = byId.get(match.sourceB);
@@ -3054,7 +3088,7 @@ function getFinalesDayGroups(matches) {
   const groups = [];
   const indexByKey = new Map();
   const SIN_FECHA = '__sin_fecha__';
-  const ordered = [...matches].sort((a, b) => (a.fecha || 0) - (b.fecha || 0) || a.id - b.id);
+  const ordered = [...matches].sort(compareMatchesChronologically);
   for (const m of ordered) {
     const key = m.fecha ? dayKeyCDMX(m.fecha) : SIN_FECHA;
     if (!indexByKey.has(key)) {
@@ -3131,7 +3165,7 @@ function renderFinalesList(knockoutMatches, ctx) {
   const groups = getFinalesDayGroups(knockoutMatches);
   const selectedGroup = groups.find(g => g.key === selectedDay);
   const dayMatches = (selectedGroup?.matches || [])
-    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+    .sort(compareMatchesChronologically);
   const label = selectedGroup?.headerLabel || 'Fecha por definir';
 
   if (!dayMatches.length) {
@@ -3238,7 +3272,8 @@ function renderFinales() {
 
   const bracketPredMap = (isOwn || sharesPredictions !== false) ? predMap : {};
   const knockoutMatches = knockoutResolvedMatches(bracketPredMap)
-    .filter(m => KNOCKOUT_ROUNDS.some(r => r.key === m.round));
+    .filter(m => isFinalesRound(m.round));
+  const bracketMatches = knockoutMatches.filter(m => isBracketRound(m.round));
   const ctx = { isOwn, savedItems, predMap, sharesPredictions };
 
   document.querySelectorAll('.finales-mode-btn').forEach(btn => {
@@ -3259,9 +3294,12 @@ function renderFinales() {
   }
 
   const columns = KNOCKOUT_ROUNDS.map(round => {
-    const matches = knockoutMatches
+    const matches = bracketMatches
       .filter(m => m.round === round.key)
       .sort((a, b) => a.roundOrder - b.roundOrder);
+    const thirdPlace = round.key === 'final'
+      ? knockoutMatches.find(m => m.round === 'third')
+      : null;
     const cup = round.key === 'final' ? buildWorldCupStage(knockoutMatches) : '';
     return `
       <section class="bracket-round ${round.className}" data-round="${round.key}">
@@ -3269,6 +3307,7 @@ function renderFinales() {
         <div class="bracket-round-matches">
           ${cup}
           ${matches.map(m => knockoutCardWrap(m, ctx)).join('')}
+          ${thirdPlace ? knockoutCardWrap(thirdPlace, ctx) : ''}
         </div>
       </section>`;
   }).join('');
@@ -3283,7 +3322,7 @@ function renderFinales() {
   board.style.setProperty('--bracket-pad-top', `${KNOCKOUT_BOARD_PADDING_TOP}px`);
   board.innerHTML = `
     <div class="bracket-canvas">
-      ${buildKnockoutConnectors(knockoutMatches)}
+      ${buildKnockoutConnectors(bracketMatches)}
       <div class="bracket-grid">${columns}</div>
     </div>`;
   applyFinalesZoom();
@@ -3394,8 +3433,8 @@ function attachFinalesCardCentering(root = document) {
 
 function orderedFinalesMatches() {
   return knockoutMatchesSource()
-    .filter(m => KNOCKOUT_ROUNDS.some(r => r.key === m.round))
-    .sort((a, b) => a.fecha - b.fecha || a.id - b.id);
+    .filter(m => isFinalesRound(m.round))
+    .sort(compareMatchesChronologically);
 }
 
 function getFinalesJumpTargetMatch() {
