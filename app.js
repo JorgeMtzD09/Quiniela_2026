@@ -49,6 +49,7 @@ const CLIENT_LIVE_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
 const CLIENT_LIVE_SYNC_KEY = 'quiniela_live_sync_last_v1';
 const INTRO_SEEN_KEY = 'quiniela_intro_seen_v3';
 const PODIO_MUSIC_SRC = 'assets/podio-song.mp3';
+const EXTRAS_MUSIC_SRC = 'assets/extras-song.mp3';
 const PODIO_MUSIC_VOLUME = 0.54;
 const MATCH_DATE_TOLERANCE_MS = 12 * 60 * 60 * 1000;
 // Duración aproximada de un partido (90' + medio tiempo + descuentos + margen) = 2h
@@ -67,6 +68,99 @@ const KNOCKOUT_BOARD_PADDING_TOP = 82;
 const KNOCKOUT_PINCH_SENSITIVITY = 1.8;
 const KNOCKOUT_WHEEL_ZOOM_SPEED = 0.006;
 const KNOCKOUT_FOCUS_ZOOM = 1.05;
+const EXTRA_PARTICIPANT_LIMIT = 4;
+const BONUS_EXCLUDED_PARTICIPANTS = ['coque'];
+const EXTRA_RANGE_OPTIONS = [
+  ['0-5', '0-5'],
+  ['6-10', '6-10'],
+  ['11-15', '11-15'],
+  ['16+', '16+'],
+];
+const EXTRA_SAVE_FIELDS = [
+  'local_tirosPorteria',
+  'local_tirosEsquina',
+  'local_atajadas',
+  'local_fuerasJuego',
+  'local_faltas',
+  'local_amarillas',
+  'local_rojas',
+  'local_minutoGol',
+  'local_autorGol',
+  'visitante_tirosPorteria',
+  'visitante_tirosEsquina',
+  'visitante_atajadas',
+  'visitante_fuerasJuego',
+  'visitante_faltas',
+  'visitante_amarillas',
+  'visitante_rojas',
+  'visitante_minutoGol',
+  'visitante_autorGol',
+  'penales',
+  'enfocanInfantino',
+  'alguienLesiona',
+  'seRevisaVar',
+  'personaLlorando',
+  'balonAlPoste',
+  'golAnulado',
+  'segundaAmarilla',
+  'penalEnPartido',
+  'golCabeza',
+  'golFueraArea',
+  'golTiempoAgregado',
+  'suplenteAnota',
+  'tarjetaBanca',
+  'horaFinPartido',
+];
+
+const EXTRA_TEAM_QUESTION_DEFS = [
+  { suffix: 'tirosPorteria', label: 'Tiros a porteria', type: 'range', min: 0, max: 80 },
+  { suffix: 'tirosEsquina', label: 'Tiros de esquina', type: 'range', min: 0, max: 80 },
+  { suffix: 'atajadas', label: 'Atajadas', type: 'range', min: 0, max: 40 },
+  { suffix: 'fuerasJuego', label: 'Fueras de juego', type: 'range', min: 0, max: 30 },
+  { suffix: 'faltas', label: 'Faltas cometidas', type: 'number', min: 0, max: 60 },
+  { suffix: 'amarillas', label: 'Tarjetas amarillas', type: 'number', min: 0, max: 20 },
+  { suffix: 'rojas', label: 'Tarjetas rojas', type: 'number', min: 0, max: 10 },
+  { suffix: 'minutoGol', label: 'Minuto del primer gol', type: 'minute', min: 1, max: 130 },
+  { suffix: 'autorGol', label: 'Autor del primer gol', type: 'scorer' },
+];
+
+const EXTRA_GENERAL_QUESTIONS = [
+  { key: 'penales', label: 'Habrá tanda de penales', type: 'select' },
+  { key: 'enfocanInfantino', label: 'Enfocan a Infantino', type: 'select' },
+  { key: 'alguienLesiona', label: 'Alguien se lesiona', type: 'select' },
+  { key: 'seRevisaVar', label: 'Se revisa el VAR', type: 'select' },
+  { key: 'personaLlorando', label: 'Enfocan una persona llorando', type: 'select' },
+  { key: 'balonAlPoste', label: 'Balón al poste o travesaño', type: 'select' },
+  { key: 'golAnulado', label: 'Hay gol anulado', type: 'select' },
+  { key: 'segundaAmarilla', label: 'Hay expulsión por segunda amarilla', type: 'select' },
+  { key: 'penalEnPartido', label: 'Hay penal en el partido', type: 'select' },
+  { key: 'golCabeza', label: 'Hay gol de cabeza', type: 'select' },
+  { key: 'golFueraArea', label: 'Hay gol fuera del área', type: 'select' },
+  { key: 'golTiempoAgregado', label: 'Hay gol en tiempo agregado', type: 'select' },
+  { key: 'suplenteAnota', label: 'Anota un jugador que entró de cambio', type: 'select' },
+  { key: 'tarjetaBanca', label: 'Hay tarjeta para alguien de la banca', type: 'select' },
+];
+
+const EXTRA_SPECIAL_QUESTIONS = [
+  { key: 'horaFinPartido', label: '¿A qué hora acaba el partido?', type: 'time', points: 2 },
+];
+
+const EXTRA_LINEUPS_URL = 'https://www.google.com/search?q=spain+vs+argentina&sca_esv=fced48e86b6f134d&biw=1176&bih=668&sxsrf=APpeQnuLk8sSpwpmWGPt0SA-zL96kqJpXg%3A1784235287518&ei=F0VZauKrH-uhkPIPrtSfyAg&ved=0ahUKEwiik4i0itiVAxXrEEQIHS7qB4kQ4dUDCBA&uact=5&oq=spain+vs+argentina&gs_lp=Egxnd3Mtd2l6LXNlcnAiEnNwYWluIHZzIGFyZ2VudGluYTIKEAAYgAQYigUYQzIKEAAYgAQYigUYQzIKEAAYgAQYigUYQzIKEAAYgAQYigUYQzIFEAAYgAQyBRAAGIAEMgUQABiABDIFEAAYgAQyBRAAGIAEMgUQABiABEilBlDEA1jEA3ACeAGQAQCYAVygAVyqAQExuAEDyAEA-AEBmAIDoAJuwgIKEAAYRxjWBBiwA8ICFxAuGNwGGLgGGNoGGNgCGMgDGLAD2AEBmAMAiAYBkAYLugYECAEYGZIHATOgB58FsgcBMbgHYsIHBTAuMS4yyAcNgAgB&sclient=gws-wiz-serp#sie=m;/g/11xmtnn25b;2;/m/030q7;ln;fp;1;;;;-1';
+
+const EXTRA_ROSTERS = {
+  espana: {
+    Porteros: ['Unai Simon', 'David Raya', 'Joan Garcia'],
+    Defensas: ['Pedro Porro', 'Marcos Llorente', 'Aymeric Laporte', 'Pau Cubarsi', 'Marc Pubill', 'Eric Garcia', 'Marc Cucurella', 'Alejandro Grimaldo'],
+    Medios: ['Rodrigo Hernandez', 'Martin Zubimendi', 'Pedri Gonzalez', 'Fabian Ruiz', 'Mikel Merino', 'Pablo Paez Gavi', 'Alex Baena'],
+    Delanteros: ['Mikel Oyarzabal', 'Lamine Yamal', 'Ferran Torres', 'Borja Iglesias', 'Dani Olmo', 'Victor Munoz', 'Nico Williams', 'Yeremy Pino'],
+  },
+  argentina: {
+    Porteros: ['Emiliano Martinez', 'Geronimo Rulli', 'Juan Musso'],
+    Defensas: ['Gonzalo Montiel', 'Nahuel Molina', 'Lisandro Martinez', 'Nicolas Otamendi', 'Leonardo Balerdi', 'Cristian Romero', 'Nicolas Tagliafico', 'Facundo Medina'],
+    Medios: ['Giovani Lo Celso', 'Leandro Paredes', 'Rodrigo De Paul', 'Exequiel Palacios', 'Enzo Fernandez', 'Alexis Mac Allister', 'Valentin Barco'],
+    Delanteros: ['Lionel Messi', 'Nicolas Gonzalez', 'Giuliano Simeone', 'Lautaro Martinez', 'Jose Manuel Lopez', 'Julian Alvarez', 'Thiago Almada', 'Nico Paz'],
+  },
+};
 
 const KNOCKOUT_ROUNDS = [
   { key: 'r32', title: 'De 32', className: 'round-r32' },
@@ -326,6 +420,7 @@ let state = {
   participantes: [],
   pronosticos: {},
   pronosticosMeta: {},
+  extras: {},
   podio: [],
   selectedPerson: null,
   selectedDay: null,
@@ -347,6 +442,11 @@ let state = {
   knockoutZoom: 0.86,
   focusedFinalesMatchId: null,
   finalesMode: 'bracket',
+  extrasSaving: false,
+  extrasDrafts: {},
+  playerPicker: null,
+  adminExtrasPerson: null,
+  selectedExtrasPerson: null,
 };
 
 let matchLockTimer = null;
@@ -446,21 +546,37 @@ function initIntroVideo() {
 // Música del Podio
 // ============================================================
 let podioMusicAudio = null;
+let podioMusicAudioSrc = null;
 let podioMusicFadeFrame = null;
 let podioMusicToken = 0;
 let podioMusicManuallyPaused = false;
 
-function getPodioMusicAudio() {
-  if (podioMusicAudio) return podioMusicAudio;
+function getActiveMusicSrc() {
+  return state.activeView === 'extras' ? EXTRAS_MUSIC_SRC : PODIO_MUSIC_SRC;
+}
 
-  podioMusicAudio = new Audio(PODIO_MUSIC_SRC);
+function getPodioMusicAudio() {
+  const source = getActiveMusicSrc();
+  if (podioMusicAudio && podioMusicAudioSrc === source) return podioMusicAudio;
+
+  if (podioMusicAudio) {
+    podioMusicAudio.pause();
+    podioMusicAudio.src = '';
+  }
+
+  podioMusicAudioSrc = source;
+  podioMusicAudio = new Audio(source);
   podioMusicAudio.loop = true;
   podioMusicAudio.preload = 'auto';
   podioMusicAudio.volume = 0;
   podioMusicAudio.addEventListener('error', () => {
-    console.warn('No se pudo cargar la música del podio.');
+    console.warn('No se pudo cargar la música de esta pantalla.');
   });
   return podioMusicAudio;
+}
+
+function podioMusicViewActive() {
+  return state.activeView === 'podio' || state.activeView === 'extras';
 }
 
 function setPodioAudioGate(visible) {
@@ -472,7 +588,7 @@ function setPodioAudioGate(visible) {
 function updatePodioAudioPauseButton() {
   const button = document.getElementById('podioAudioPause');
   if (!button) return;
-  button.hidden = state.activeView !== 'podio';
+  button.hidden = !podioMusicViewActive();
   button.textContent = podioMusicManuallyPaused ? 'Reanudar audio' : 'Pausar audio';
   button.classList.toggle('is-resume', podioMusicManuallyPaused);
 }
@@ -518,7 +634,7 @@ function fadePodioMusicTo(targetVolume, durationMs = 700, token = podioMusicToke
 }
 
 async function startPodioMusic() {
-  if (state.activeView !== 'podio') return;
+  if (!podioMusicViewActive()) return;
   if (podioMusicManuallyPaused) return;
 
   const token = ++podioMusicToken;
@@ -537,7 +653,7 @@ async function startPodioMusic() {
 
   try {
     await audio.play();
-    if (token !== podioMusicToken || state.activeView !== 'podio') {
+    if (token !== podioMusicToken || !podioMusicViewActive()) {
       audio.pause();
       try {
         audio.currentTime = 0;
@@ -555,17 +671,31 @@ async function startPodioMusic() {
   }
 }
 
-function stopPodioMusic() {
+function stopPodioMusic(durationMs = 650) {
   setPodioAudioGate(false);
   podioMusicManuallyPaused = false;
   updatePodioAudioPauseButton();
   if (!podioMusicAudio) return;
   const token = ++podioMusicToken;
-  fadePodioMusicTo(0, 650, token);
+  if (durationMs <= 0) {
+    if (podioMusicFadeFrame) {
+      cancelAnimationFrame(podioMusicFadeFrame);
+      podioMusicFadeFrame = null;
+    }
+    podioMusicAudio.pause();
+    podioMusicAudio.volume = 0;
+    try {
+      podioMusicAudio.currentTime = 0;
+    } catch (err) {
+      console.warn('No se pudo reiniciar la música del podio:', err);
+    }
+    return;
+  }
+  fadePodioMusicTo(0, durationMs, token);
 }
 
 function pausePodioMusic() {
-  if (state.activeView !== 'podio') return;
+  if (!podioMusicViewActive()) return;
 
   podioMusicManuallyPaused = true;
   updatePodioAudioPauseButton();
@@ -581,7 +711,7 @@ function pausePodioMusic() {
 }
 
 async function resumePodioMusic() {
-  if (state.activeView !== 'podio') return;
+  if (!podioMusicViewActive()) return;
 
   podioMusicManuallyPaused = false;
   updatePodioAudioPauseButton();
@@ -597,7 +727,7 @@ async function resumePodioMusic() {
 
   try {
     await audio.play();
-    if (token !== podioMusicToken || state.activeView !== 'podio') {
+    if (token !== podioMusicToken || !podioMusicViewActive()) {
       audio.pause();
       return;
     }
@@ -631,7 +761,7 @@ function initPodioMusic() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopPodioMusic();
-    } else if (state.activeView === 'podio') {
+    } else if (podioMusicViewActive()) {
       startPodioMusic();
     }
   });
@@ -1133,8 +1263,12 @@ function logout() {
   stopMatchLockTimer();
   stopLiveMinuteTimer();
   stopGruposPolling();
+  stopPodioMusic(0);
   clearSession();
+  state.activeView = 'info';
   state.selectedPerson = null;
+  state.selectedExtrasPerson = null;
+  state.extrasDrafts = {};
   state.editingMatchId = null;
   state.pendingSave = null;
   state.sharePreferenceSaving = false;
@@ -1149,6 +1283,7 @@ function logout() {
   closeModal();
   document.body.classList.remove('admin-mode', 'podio-mode');
   updateHeaderSession();
+  updatePodioAudioPauseButton();
   applyAuthGate();
 }
 
@@ -1313,11 +1448,18 @@ function subscribeFirestore() {
   let partidos = [];
   let participantes = [];
   let pronosticosDocs = [];
+  let extrasDocs = [];
 
   const maybeUpdate = () => {
     if (!partidos.length || !participantes.length) return;
     const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos, participantes);
     applyData(partidos, participantes, pronosticos, meta);
+
+    state.extras = {};
+    extrasDocs.forEach(d => {
+      state.extras[d.id] = d.data();
+    });
+
     renderAll();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
     syncLiveScoresFromClient({ silent: true }).catch(handleClientLiveSyncError);
@@ -1346,6 +1488,13 @@ function subscribeFirestore() {
       pronosticosDocs = snap.docs;
       maybeUpdate();
     }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
+  );
+
+  unsubscribers.push(
+    onSnapshot(collection(db, 'extras'), snap => {
+      extrasDocs = snap.docs;
+      maybeUpdate();
+    }, err => { console.error(err); setStatus('Error al leer extras', 'error'); })
   );
 }
 
@@ -1385,11 +1534,18 @@ function subscribeAdmin() {
   let partidos = [];
   let participantes = [];
   let pronosticosDocs = [];
+  let extrasDocs = [];
 
   const maybeUpdate = () => {
     if (!partidos.length) return;
     const { pronosticos, meta } = pronosticosFromFirestore(pronosticosDocs, partidos, participantes);
     applyData(partidos, participantes, pronosticos, meta);
+
+    state.extras = {};
+    extrasDocs.forEach(d => {
+      state.extras[d.id] = d.data();
+    });
+
     if (state.adminEditingId === null) renderAdmin();
     setStatus(`En vivo · ${formatTime(new Date())}`, 'ok');
   };
@@ -1420,6 +1576,13 @@ function subscribeAdmin() {
       pronosticosDocs = snap.docs;
       maybeUpdate();
     }, err => { console.error(err); setStatus('Error al leer pronósticos', 'error'); })
+  );
+
+  unsubscribers.push(
+    onSnapshot(collection(db, 'extras'), snap => {
+      extrasDocs = snap.docs;
+      maybeUpdate();
+    }, err => { console.error(err); setStatus('Error al leer extras', 'error'); })
   );
 }
 
@@ -1985,6 +2148,8 @@ function renderAdmin() {
 
   if (state.adminSection === 'predictions') {
     renderAdminPredictions();
+  } else if (state.adminSection === 'extras') {
+    renderAdminExtras();
   } else {
     if (!state.partidos.length) {
       el.innerHTML = '<div class="loading"><div class="loading-spinner"></div>Cargando partidos...</div>';
@@ -2001,9 +2166,17 @@ function renderAdminShell() {
   const syncHint = document.getElementById('adminSyncHint');
   const syncBtn = document.getElementById('btnLiveSyncNow');
   const toolbar = document.getElementById('adminPredictionsToolbar');
-  if (title) title.textContent = state.adminSection === 'predictions' ? 'Editar pronósticos' : 'Capturar resultados';
-  if (syncHint) syncHint.hidden = state.adminSection === 'predictions';
-  if (syncBtn) syncBtn.hidden = state.adminSection === 'predictions';
+  if (title) {
+    if (state.adminSection === 'predictions') {
+      title.textContent = 'Editar pronósticos';
+    } else if (state.adminSection === 'extras') {
+      title.textContent = 'Resultados Bonus';
+    } else {
+      title.textContent = 'Capturar resultados';
+    }
+  }
+  if (syncHint) syncHint.hidden = state.adminSection !== 'results';
+  if (syncBtn) syncBtn.hidden = state.adminSection !== 'results';
   if (toolbar) toolbar.hidden = state.adminSection !== 'predictions';
   document.querySelectorAll('.admin-tab').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.adminSection === state.adminSection);
@@ -3851,9 +4024,10 @@ function renderAll() {
   renderPodio();
   renderDayTabs();
   renderPersonTabs();
-  if (state.activeView !== 'quiniela' && state.editingMatchId === null) renderPersonDetail();
+  if (state.activeView === 'quiniela' && state.editingMatchId === null) renderPersonDetail();
   if (state.activeView === 'grupos') renderGrupos();
   if (knockoutEnabled() && state.activeView === 'finales') renderFinales();
+  if (state.activeView === 'extras') renderExtras();
   updateHeaderSession();
   renderShareToggle();
 }
@@ -4000,12 +4174,907 @@ function renderGrupos() {
 }
 
 // ============================================================
+// Puntos Extra (Reto del Partido) Lógica
+// ============================================================
+function areExtrasLocked() {
+  const finalMatch = state.partidos.find(m => m.round === 'final' || m.id === 103);
+  if (finalMatch && matchStarted(finalMatch)) return true;
+  return false;
+}
+
+function escapeHTML(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function normalizeText(text) {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function isBonusParticipant(p) {
+  const values = [p?.clave, p?.nombreVisible, p?.usuario].map(normalizeText);
+  return !values.some(value => BONUS_EXCLUDED_PARTICIPANTS.some(excluded =>
+    value === excluded || value.startsWith(`${excluded} `)
+  ));
+}
+
+function getBonusParticipants() {
+  return state.participantes.filter(isBonusParticipant);
+}
+
+function matchScorer(pred, real) {
+  const p = normalizeText(pred);
+  const r = normalizeText(real);
+  if (!p || !r) return false;
+  return p === r || p.includes(r) || r.includes(p);
+}
+
+function getExtraFinalMatch() {
+  return findResolvedKnockoutMatch(103)
+    || state.partidos.find(m => Number(m.id) === 103)
+    || baseKnockoutMatches().find(m => Number(m.id) === 103)
+    || null;
+}
+
+function getExtraFinalTeams() {
+  const match = getExtraFinalMatch();
+  return {
+    local: match?.local || 'Equipo local',
+    visitante: match?.visitante || 'Equipo visitante',
+  };
+}
+
+function extraTeamFields(prefix, teamName) {
+  return EXTRA_TEAM_QUESTION_DEFS.map(q => ({
+    ...q,
+    key: `${prefix}_${q.suffix}`,
+    section: teamName,
+  }));
+}
+
+function extraQuestions() {
+  const teams = getExtraFinalTeams();
+  return [
+    ...extraTeamFields('local', teams.local),
+    ...extraTeamFields('visitante', teams.visitante),
+    ...EXTRA_GENERAL_QUESTIONS.map(q => ({ ...q, section: 'General' })),
+    ...EXTRA_SPECIAL_QUESTIONS.map(q => ({ ...q, section: 'Especial' })),
+  ];
+}
+
+function getRangeForValue(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '';
+  if (n <= 5) return '0-5';
+  if (n <= 10) return '6-10';
+  if (n <= 15) return '11-15';
+  return '16+';
+}
+
+function formatExtraValue(value, question, { forResult = false } = {}) {
+  if (value === 'no_anotan') return question.type === 'scorer' ? 'Ninguno' : 'No anotan';
+  if (question.type === 'select') return value === 'si' ? 'Si' : value === 'no' ? 'No' : '-';
+  if (question.type === 'time') return value ? `${value} PM` : '-';
+  if (question.type === 'range' && forResult && value !== undefined && value !== null && value !== '') {
+    return `${value} (${getRangeForValue(value)})`;
+  }
+  return value !== undefined && value !== null && value !== '' ? value : '-';
+}
+
+function extraAnswerCorrect(predVal, realVal, question) {
+  if (realVal === undefined || realVal === null || realVal === '') return false;
+  if (predVal === undefined || predVal === null || predVal === '') return false;
+  if (question.type === 'range') return String(predVal) === getRangeForValue(realVal);
+  if (question.type === 'number') return Number(predVal) === Number(realVal);
+  if (question.type === 'minute') {
+    if (realVal === 'no_anotan' || predVal === 'no_anotan') return realVal === predVal;
+    return Number(predVal) === Number(realVal);
+  }
+  if (question.type === 'scorer') {
+    if (realVal === 'no_anotan' || predVal === 'no_anotan') return realVal === predVal;
+    return matchScorer(predVal, realVal);
+  }
+  if (question.type === 'time') return String(predVal).trim() === String(realVal).trim();
+  return String(predVal).toLowerCase().trim() === String(realVal).toLowerCase().trim();
+}
+
+function normalizeBonusTime(value) {
+  const text = String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const match = text.match(/^(\d{1,2}):(\d{2})(?:\s*PM)?$/);
+  if (!match) return '';
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (!Number.isInteger(hour) || hour < 1 || hour > 12) return '';
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return '';
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+}
+
+function getExtraTotalPoints() {
+  return extraQuestions().reduce((sum, question) => sum + (question.points || 1), 0) + 3;
+}
+
+function getExtrasScores() {
+  const resultados = state.extras['resultados'] || {};
+  const questions = extraQuestions();
+  const scores = getBonusParticipants().map(p => {
+    const preds = state.extras[p.clave] || {};
+    const customHits = Array.isArray(resultados.customAciertos?.[p.clave])
+      ? resultados.customAciertos[p.clave]
+      : [];
+    let total = 0;
+
+    const details = questions.map(question => {
+      const pred = preds[question.key];
+      const real = resultados[question.key];
+      const correct = extraAnswerCorrect(pred, real, question);
+      if (correct) total += question.points || 1;
+      return { ...question, pred, real, correct };
+    });
+    total += customHits.filter(Boolean).length;
+
+    return {
+      clave: p.clave,
+      nombre: p.nombreVisible,
+      puntos: total,
+      details
+    };
+  });
+
+  scores.sort((a, b) => b.puntos - a.puntos || a.nombre.localeCompare(b.nombre, 'es'));
+
+  let rank = 0, prevPts = null;
+  return scores.map(s => {
+    if (s.puntos !== prevPts) { rank += 1; prevPts = s.puntos; }
+    return { ...s, rank };
+  });
+}
+
+function cleanCustomPredictions(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .map(item => item.slice(0, 300));
+}
+
+function cleanExtraPayload(data, { admin = false } = {}) {
+  const payload = {};
+  const questions = extraQuestions();
+  for (const question of questions) {
+    const value = data[question.key];
+    if (question.type === 'select') {
+      if (value !== 'si' && value !== 'no') throw new Error(`Elige Si o No para ${question.label}.`);
+      payload[question.key] = value;
+      continue;
+    }
+    if (question.type === 'time') {
+      const text = normalizeBonusTime(value);
+      if (!text) throw new Error(`Completa ${question.label}.`);
+      payload[question.key] = text;
+      continue;
+    }
+    if (question.type === 'range' && !admin) {
+      if (!EXTRA_RANGE_OPTIONS.some(([key]) => key === value)) throw new Error(`Elige un rango para ${question.label}.`);
+      payload[question.key] = value;
+      continue;
+    }
+    if (question.type === 'scorer') {
+      const text = String(value || '').trim();
+      if (!text) throw new Error(`Completa ${question.label}.`);
+      payload[question.key] = text === 'no_anotan' ? 'no_anotan' : text.slice(0, 80);
+      continue;
+    }
+    if (question.type === 'minute') {
+      if (value === 'no_anotan') {
+        payload[question.key] = 'no_anotan';
+        continue;
+      }
+      const n = Number(value);
+      if (!Number.isInteger(n) || n < question.min || n > question.max) throw new Error(`Revisa ${question.label}.`);
+      payload[question.key] = n;
+      continue;
+    }
+    const n = Number(value);
+    if (!Number.isInteger(n) || n < question.min || n > question.max) throw new Error(`Revisa ${question.label}.`);
+    payload[question.key] = n;
+  }
+  if (admin) {
+    payload.customAciertos = data.customAciertos && typeof data.customAciertos === 'object'
+      ? data.customAciertos
+      : {};
+  } else {
+    const customPredicciones = cleanCustomPredictions(data.customPredicciones);
+    if (customPredicciones.length < 3) throw new Error('Completa las tres predicciones entre participantes.');
+    payload.customPredicciones = customPredicciones;
+  }
+  return payload;
+}
+
+async function saveExtras(data) {
+  if (!state.session) throw new Error('Inicia sesión');
+  if (!db) throw new Error('Sin conexión');
+
+  await syncInternetClock();
+
+  if (areExtrasLocked()) throw new Error('Las respuestas ya están cerradas porque el partido ha comenzado.');
+
+  const clave = state.session.clave;
+  const { doc, setDoc } = firestoreFns;
+  const payload = cleanExtraPayload(data);
+
+  state.extrasSaving = true;
+  if (state.activeView === 'extras') renderExtras();
+
+  try {
+    await setDoc(doc(db, 'extras', clave), {
+      ...payload,
+      actualizado: new Date().toISOString()
+    }, { merge: true });
+    showToast('Respuestas bonus guardadas', false);
+  } catch (err) {
+    showToast(err.message || 'No se pudieron guardar las respuestas', true);
+    throw err;
+  } finally {
+    state.extrasSaving = false;
+    if (state.activeView === 'extras') renderExtras();
+  }
+}
+
+async function saveAdminExtras(data) {
+  if (!isAdminSession()) throw new Error('No autorizado');
+  if (!db) throw new Error('Sin conexión');
+
+  const { doc, setDoc } = firestoreFns;
+  const payload = cleanExtraPayload(data, { admin: true });
+
+  try {
+    await setDoc(doc(db, 'extras', 'resultados'), {
+      ...payload,
+      actualizado: new Date().toISOString()
+    }, { merge: true });
+    showToast('Resultados del reto guardados', false);
+  } catch (err) {
+    showToast(err.message || 'No se pudieron guardar los resultados', true);
+    throw err;
+  }
+}
+
+function renderExtrasTeamsHeader() {
+  const { local, visitante } = getExtraFinalTeams();
+  const localParts = splitFlag(local);
+  const visitorParts = splitFlag(visitante);
+  return `
+    <div class="extras-teams-header">
+      <div class="extras-team-card">
+        <span class="extras-team-flag">${escapeHTML(localParts.flag || '')}</span>
+        <span class="extras-team-name">${escapeHTML(localParts.name || local)}</span>
+      </div>
+      <span class="extras-vs">vs</span>
+      <div class="extras-team-card">
+        <span class="extras-team-flag">${escapeHTML(visitorParts.flag || '')}</span>
+        <span class="extras-team-name">${escapeHTML(visitorParts.name || visitante)}</span>
+      </div>
+    </div>`;
+}
+
+function renderExtrasLeaderboard(scores) {
+  const totalQuestions = getExtraTotalPoints();
+  return `
+    <div class="extras-leaderboard-card">
+      <h3 class="extras-section-title">Tabla de posiciones</h3>
+      <table class="extras-leaderboard-table">
+        <thead>
+          <tr>
+            <th>Lugar</th>
+            <th>Participante</th>
+            <th>Aciertos</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${scores.map(s => `
+            <tr class="${s.rank === 1 && s.puntos > 0 ? 'is-winner' : ''}">
+              <td><span class="extras-rank-number">${s.rank}º</span></td>
+              <td><div class="extras-user-cell">${escapeHTML(s.nombre)}</div></td>
+              <td><span class="extras-points-cell">${s.puntos}/${totalQuestions}</span></td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function renderRangeSelect(id, value, disabled = false) {
+  const selectedValue = value || '';
+  return `
+    <select class="extras-input-control" id="${id}" ${disabled ? 'disabled' : ''} required>
+      <option value="" ${selectedValue === '' ? 'selected' : ''}></option>
+      ${EXTRA_RANGE_OPTIONS.map(([key, label]) => `
+        <option value="${key}" ${selectedValue === key ? 'selected' : ''}>${label}</option>`).join('')}
+    </select>`;
+}
+
+function rosterKeyForTeam(teamName) {
+  const normalized = normalizeText(teamName);
+  if (normalized.includes('espana') || normalized.includes('spain')) return 'espana';
+  if (normalized.includes('argentina')) return 'argentina';
+  return null;
+}
+
+function renderScorerPicker(id, teamName, value, { disabled = false, admin = false } = {}) {
+  const roster = EXTRA_ROSTERS[rosterKeyForTeam(teamName)];
+  if (!roster) {
+    const className = admin ? 'admin-extras-input' : 'extras-input-control';
+    return `<input class="${className}" type="text" id="${id}" placeholder="Nombre" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''} required>`;
+  }
+  const selected = String(value || '');
+  const label = selected || 'Elegir jugador';
+  return `
+    <input type="hidden" id="${id}" value="${escapeHTML(selected)}" ${disabled ? 'disabled' : ''} required>
+    <button class="extras-player-picker-btn ${admin ? 'admin-player-picker-btn' : ''} ${selected ? 'has-value' : ''}" type="button"
+            data-player-picker="${id}" data-team-name="${escapeHTML(teamName)}" ${disabled ? 'disabled' : ''}>
+      ${escapeHTML(label)}
+    </button>`;
+}
+
+function renderExtraSideControl(questionDef, prefix, teamName, values, { admin = false, disabled = false } = {}) {
+  const key = `${prefix}_${questionDef.suffix}`;
+  const id = `${admin ? 'adm_ext' : 'ext'}_${key}`;
+  const value = values[key] ?? '';
+  const isNone = value === 'no_anotan';
+  const inputClass = admin ? 'admin-extras-input' : 'extras-input-control';
+  let control = '';
+
+  if (questionDef.type === 'range' && !admin) {
+    control = renderRangeSelect(id, value, disabled);
+  } else if (questionDef.type === 'scorer') {
+    const scorerControl = renderScorerPicker(id, teamName, isNone ? '' : value, { disabled: isNone || disabled, admin });
+    control = `
+      ${scorerControl}
+      <label class="checkbox-inline-row extras-none-row">
+        <input type="checkbox" id="${id}_none" data-none-target="${id}" ${isNone ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+        <span>Ninguno</span>
+      </label>`;
+  } else if (questionDef.type === 'minute') {
+    control = `
+      <input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="Min" value="${isNone ? '' : escapeHTML(value)}" ${isNone || disabled ? 'disabled' : ''} required>
+      <label class="checkbox-inline-row extras-none-row">
+        <input type="checkbox" id="${id}_none" data-none-target="${id}" ${isNone ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+        <span>No anotan</span>
+      </label>`;
+  } else {
+    control = `<input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="-" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''} required>`;
+  }
+
+  return `
+    <div class="extras-side-control">
+      ${control}
+    </div>`;
+}
+
+function renderExtraQuestionRows(values, { admin = false, disabled = false } = {}) {
+  const { local, visitante } = getExtraFinalTeams();
+  return EXTRA_TEAM_QUESTION_DEFS.map(q => `
+    <section class="extras-question-card">
+      <h4 class="extras-question-title">${escapeHTML(q.label)}</h4>
+      <div class="extras-dual-controls">
+        ${renderExtraSideControl(q, 'local', local, values, { admin, disabled })}
+        ${renderExtraSideControl(q, 'visitante', visitante, values, { admin, disabled })}
+      </div>
+    </section>`).join('');
+}
+
+function renderExtraGeneralQuestions(values, { admin = false, disabled = false } = {}) {
+  const inputClass = admin ? 'admin-extras-input' : 'extras-input-control';
+  const idPrefix = admin ? 'adm_ext' : 'ext';
+  return `
+    <section class="extras-section-block extras-general-block">
+      <h4 class="extras-team-section-title">General</h4>
+      <div class="extras-general-grid">
+        ${EXTRA_GENERAL_QUESTIONS.map(q => `
+          <div class="extras-field-group">
+            <label class="extras-input-label" for="${idPrefix}_${q.key}">${escapeHTML(q.label)}</label>
+            <select class="${inputClass}" id="${idPrefix}_${q.key}" ${disabled ? 'disabled' : ''} required>
+              <option value="" ${values[q.key] !== 'si' && values[q.key] !== 'no' ? 'selected' : ''}></option>
+              <option value="no" ${values[q.key] === 'no' ? 'selected' : ''}>No</option>
+              <option value="si" ${values[q.key] === 'si' ? 'selected' : ''}>Si</option>
+            </select>
+          </div>`).join('')}
+      </div>
+    </section>`;
+}
+
+function renderExtraSpecialQuestions(values, { admin = false, disabled = false } = {}) {
+  const inputClass = admin ? 'admin-extras-input' : 'extras-input-control';
+  const idPrefix = admin ? 'adm_ext' : 'ext';
+  return `
+    <section class="extras-section-block extras-special-block">
+      <h4 class="extras-team-section-title">Especial · 2 puntos</h4>
+      ${EXTRA_SPECIAL_QUESTIONS.map(q => `
+        <div class="extras-field-group">
+          <label class="extras-input-label" for="${idPrefix}_${q.key}">${escapeHTML(q.label)}</label>
+          <div class="extras-time-control">
+            <select class="${inputClass}" id="${idPrefix}_${q.key}_hour" ${disabled ? 'disabled' : ''} required>
+              <option value="" ${!normalizeBonusTime(values[q.key]) ? 'selected' : ''}></option>
+              ${Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(hour => `
+                <option value="${hour}" ${normalizeBonusTime(values[q.key]).slice(0, 2) === hour ? 'selected' : ''}>${hour}</option>`).join('')}
+            </select>
+            <span class="extras-time-separator">:</span>
+            <select class="${inputClass}" id="${idPrefix}_${q.key}_minute" ${disabled ? 'disabled' : ''} required>
+              <option value="" ${!normalizeBonusTime(values[q.key]) ? 'selected' : ''}></option>
+              ${Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(minute => `
+                <option value="${minute}" ${normalizeBonusTime(values[q.key]).slice(3, 5) === minute ? 'selected' : ''}>${minute}</option>`).join('')}
+            </select>
+            <span class="extras-time-meridiem">PM</span>
+          </div>
+        </div>`).join('')}
+    </section>`;
+}
+
+function renderCustomPredictionsForm(values, disabled = false) {
+  const items = Array.isArray(values.customPredicciones) ? values.customPredicciones : [];
+  return `
+    <section class="extras-section-block extras-custom-block">
+      <h4 class="extras-team-section-title">Predicciones entre participantes</h4>
+      <p class="extras-custom-hint">Escribe hasta tres cosas concretas que crees que pasaran entre ustedes viendo la final. Ejemplos: Abuelo se duerme, llegamos tarde a ver el partido.</p>
+      ${[0, 1, 2].map(i => `
+        <div class="extras-field-group">
+          <label class="extras-input-label" for="ext_custom_${i}">Prediccion ${i + 1}</label>
+          <textarea class="extras-input-control extras-custom-textarea" id="ext_custom_${i}" maxlength="300" rows="1" required
+                    ${disabled ? 'disabled' : ''}>${escapeHTML(items[i] || '')}</textarea>
+        </div>`).join('')}
+    </section>`;
+}
+
+function resizeAutoTextarea(textarea) {
+  if (!textarea) return;
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function canDraftCurrentExtrasForm() {
+  return !!(
+    state.session?.clave
+    && state.selectedExtrasPerson === state.session.clave
+    && !areExtrasLocked()
+    && document.getElementById('extrasForm')
+  );
+}
+
+function persistCurrentExtrasDraft() {
+  if (!canDraftCurrentExtrasForm()) return;
+  state.extrasDrafts[state.session.clave] = readExtrasFormData();
+}
+
+function getExtrasFormValues(clave) {
+  const saved = state.extras[clave] || {};
+  if (clave !== state.session?.clave) return saved;
+  const draft = state.extrasDrafts[clave];
+  return draft ? { ...saved, ...draft } : saved;
+}
+
+function ensureSelectedExtrasPerson() {
+  const participants = getBonusParticipants();
+  if (state.selectedExtrasPerson && participants.some(p => p.clave === state.selectedExtrasPerson)) return;
+  state.selectedExtrasPerson = participants.some(p => p.clave === state.session?.clave)
+    ? state.session.clave
+    : participants[0]?.clave || null;
+}
+
+function renderExtrasPersonTabs() {
+  ensureSelectedExtrasPerson();
+  return `
+    <div class="person-tabs extras-person-tabs">
+      ${getBonusParticipants().map(p => {
+        const isMe = state.session?.clave === p.clave;
+        return `
+          <button type="button" class="person-tab ${state.selectedExtrasPerson === p.clave ? 'active' : ''}" data-extra-person="${p.clave}">
+            ${escapeHTML(p.nombreVisible)}${isMe ? ' <span class="tab-me">(tu)</span>' : ''}
+          </button>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderExtrasForm() {
+  ensureSelectedExtrasPerson();
+  const person = state.participantes.find(p => p.clave === state.selectedExtrasPerson);
+  const userPreds = getExtrasFormValues(state.selectedExtrasPerson);
+  const isOwn = state.session?.clave === state.selectedExtrasPerson;
+  const isSaving = !!state.extrasSaving;
+  const locked = areExtrasLocked();
+  const readOnly = !isOwn || locked || isSaving;
+  return `
+    <div class="extras-form-card">
+      <h3 class="extras-section-title">${isOwn ? 'Tus predicciones' : `Predicciones de ${escapeHTML(person?.nombreVisible || 'participante')}`}</h3>
+      <form id="extrasForm">
+        <div class="extras-question-list">
+          ${renderExtraQuestionRows(userPreds, { disabled: readOnly })}
+        </div>
+        ${renderExtraGeneralQuestions(userPreds, { disabled: readOnly })}
+        ${renderCustomPredictionsForm(userPreds, readOnly)}
+        ${renderExtraSpecialQuestions(userPreds, { disabled: readOnly })}
+        ${isOwn && !locked ? `<button type="submit" class="btn-primary extras-save-btn" ${isSaving ? 'disabled' : ''}>
+          ${isSaving ? 'Guardando...' : 'Guardar predicciones'}
+        </button>` : '<p class="extras-lock-hint">Solo puedes editar tus propias predicciones antes del inicio de la final.</p>'}
+      </form>
+    </div>`;
+}
+
+function renderExtrasStickyHeader() {
+  return `
+    <div class="extras-sticky-header">
+      ${renderExtrasPersonTabs()}
+      ${renderExtrasTeamsHeader()}
+    </div>`;
+}
+
+function setExtraNoneControl(checkbox) {
+  const input = document.getElementById(checkbox.dataset.noneTarget);
+  if (!input) return;
+  input.disabled = checkbox.checked || state.extrasSaving;
+  input.required = !checkbox.checked;
+  if (checkbox.checked) input.value = '';
+  const button = document.querySelector(`[data-player-picker="${checkbox.dataset.noneTarget}"]`);
+  if (button) {
+    button.disabled = checkbox.checked || state.extrasSaving;
+    if (checkbox.checked) {
+      button.textContent = 'Elegir jugador';
+      button.classList.remove('has-value');
+    }
+  }
+}
+
+function closePlayerPicker() {
+  const modal = document.getElementById('playerPickerModal');
+  if (modal) modal.hidden = true;
+  state.playerPicker = null;
+}
+
+function renderPlayerPickerList(filter = '') {
+  const list = document.getElementById('playerPickerList');
+  if (!list || !state.playerPicker) return;
+  const { roster, inputId } = state.playerPicker;
+  const selected = document.getElementById(inputId)?.value || '';
+  const needle = normalizeText(filter);
+  const groups = Object.entries(roster)
+    .map(([group, players]) => ({
+      group,
+      players: players.filter(player => !needle || normalizeText(player).includes(needle)),
+    }))
+    .filter(group => group.players.length);
+
+  if (!groups.length) {
+    list.innerHTML = '<div class="player-picker-empty">Sin resultados</div>';
+    return;
+  }
+
+  list.innerHTML = groups.map(({ group, players }) => `
+    <section class="player-picker-group">
+      <h4>${escapeHTML(group)}</h4>
+      <div class="player-picker-options">
+        ${players.map(player => `
+          <button type="button" class="player-picker-option ${selected === player ? 'active' : ''}" data-player="${escapeHTML(player)}">
+            ${escapeHTML(player)}
+          </button>`).join('')}
+      </div>
+    </section>`).join('');
+
+  list.querySelectorAll('.player-picker-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(inputId);
+      const trigger = document.querySelector(`[data-player-picker="${inputId}"]`);
+      if (input) input.value = btn.dataset.player;
+      if (trigger) {
+        trigger.textContent = btn.dataset.player;
+        trigger.classList.add('has-value');
+      }
+      persistCurrentExtrasDraft();
+      closePlayerPicker();
+    });
+  });
+}
+
+function openPlayerPicker(inputId, teamName) {
+  const roster = EXTRA_ROSTERS[rosterKeyForTeam(teamName)];
+  if (!roster) return;
+  state.playerPicker = { inputId, teamName, roster };
+  const title = document.getElementById('playerPickerTitle');
+  const search = document.getElementById('playerPickerSearch');
+  const lineupsLink = document.getElementById('playerPickerLineupsLink');
+  const team = splitFlag(teamName);
+  if (title) title.textContent = `Autor del primer gol · ${team.name || teamName}`;
+  if (lineupsLink) lineupsLink.href = EXTRA_LINEUPS_URL;
+  if (search) search.value = '';
+  renderPlayerPickerList('');
+  const modal = document.getElementById('playerPickerModal');
+  if (modal) modal.hidden = false;
+  requestAnimationFrame(() => search?.focus());
+}
+
+function readExtrasFormData() {
+  const data = {};
+  for (const key of EXTRA_SAVE_FIELDS) {
+    const el = document.getElementById(`ext_${key}`);
+    const none = document.getElementById(`ext_${key}_none`);
+    if (none?.checked) data[key] = 'no_anotan';
+    else if (el) data[key] = el.value;
+  }
+  for (const question of EXTRA_SPECIAL_QUESTIONS) {
+    const hour = document.getElementById(`ext_${question.key}_hour`)?.value || '';
+    const minute = document.getElementById(`ext_${question.key}_minute`)?.value || '';
+    data[question.key] = hour && minute ? `${hour}:${minute}` : '';
+  }
+  data.customPredicciones = [0, 1, 2].map(i => document.getElementById(`ext_custom_${i}`)?.value || '');
+  return data;
+}
+
+function renderExtrasComparison(resultados) {
+  const questions = extraQuestions();
+  const participants = getBonusParticipants().slice(0, EXTRA_PARTICIPANT_LIMIT);
+  return `
+    <div class="extras-comparison-wrapper">
+      <h3 class="extras-section-title">Comparativa de predicciones</h3>
+      <table class="extras-comparison-table">
+        <thead>
+          <tr>
+            <th class="col-question">Pregunta</th>
+            <th class="col-result">Resultado</th>
+            ${participants.map(p => `<th>${escapeHTML(p.nombreVisible)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${questions.map(q => `
+            <tr>
+              <td class="col-question">${escapeHTML(q.section)} · ${escapeHTML(q.label)}</td>
+              <td class="col-result">${escapeHTML(formatExtraValue(resultados[q.key], q, { forResult: true }))}</td>
+              ${participants.map(p => {
+                const pred = state.extras[p.clave]?.[q.key];
+                const hasReal = resultados[q.key] !== undefined && resultados[q.key] !== null && resultados[q.key] !== '';
+                const hasPred = pred !== undefined && pred !== null && pred !== '';
+                const cls = hasReal && hasPred ? (extraAnswerCorrect(pred, resultados[q.key], q) ? 'guess-correct' : 'guess-incorrect') : '';
+                return `<td class="${cls}">${escapeHTML(formatExtraValue(pred, q))}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      ${renderCustomPredictionsComparison(resultados)}
+      <p class="extras-lock-hint"><span>Bonus cerrado</span> Las respuestas ya se pueden comparar.</p>
+    </div>`;
+}
+
+function renderCustomPredictionsComparison(resultados) {
+  const participants = getBonusParticipants().slice(0, EXTRA_PARTICIPANT_LIMIT);
+  const hasAny = participants.some(p => cleanCustomPredictions(state.extras[p.clave]?.customPredicciones).length);
+  if (!hasAny) return '';
+  return `
+    <div class="extras-custom-comparison">
+      <h4 class="extras-team-section-title">Predicciones entre participantes</h4>
+      ${participants.map(p => {
+        const items = cleanCustomPredictions(state.extras[p.clave]?.customPredicciones);
+        const hits = Array.isArray(resultados.customAciertos?.[p.clave]) ? resultados.customAciertos[p.clave] : [];
+        if (!items.length) return '';
+        return `
+          <div class="extras-custom-person">
+            <strong>${escapeHTML(p.nombreVisible)}</strong>
+            ${items.map((item, index) => `
+              <div class="extras-custom-result ${hits[index] ? 'guess-correct' : 'guess-incorrect'}">
+                <span>${escapeHTML(item)}</span>
+                <b>${hits[index] ? 'Atino' : 'No atino'}</b>
+              </div>`).join('')}
+          </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function renderExtras() {
+  if (state.activeView !== 'extras') return;
+  const el = document.getElementById('extrasContent');
+  if (!el) return;
+
+  const scores = getExtrasScores();
+  const locked = areExtrasLocked();
+  const resultados = state.extras['resultados'] || {};
+  el.innerHTML = renderExtrasLeaderboard(scores)
+    + renderExtrasStickyHeader()
+    + (locked ? renderExtrasComparison(resultados) : renderExtrasForm());
+
+  el.querySelectorAll('[data-extra-person]').forEach(button => {
+    button.addEventListener('click', e => {
+      const nextPerson = e.currentTarget.dataset.extraPerson;
+      if (!nextPerson || nextPerson === state.selectedExtrasPerson) return;
+      persistCurrentExtrasDraft();
+      state.selectedExtrasPerson = nextPerson;
+      renderExtras();
+    });
+  });
+
+  const form = document.getElementById('extrasForm');
+  if (form) {
+    form.querySelectorAll('[data-player-picker]').forEach(button => {
+      button.addEventListener('click', e => {
+        openPlayerPicker(e.currentTarget.dataset.playerPicker, e.currentTarget.dataset.teamName);
+      });
+    });
+    form.querySelectorAll('[data-none-target]').forEach(checkbox => {
+      checkbox.addEventListener('change', e => {
+        setExtraNoneControl(e.currentTarget);
+      });
+    });
+    form.querySelectorAll('.extras-custom-textarea').forEach(textarea => {
+      resizeAutoTextarea(textarea);
+      textarea.addEventListener('input', e => {
+        resizeAutoTextarea(e.currentTarget);
+        persistCurrentExtrasDraft();
+      });
+    });
+    form.addEventListener('input', persistCurrentExtrasDraft);
+    form.addEventListener('change', persistCurrentExtrasDraft);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      try {
+        persistCurrentExtrasDraft();
+        await saveExtras(readExtrasFormData());
+      } catch (err) {
+        // error toast handled in saveExtras
+      }
+    });
+  }
+}
+
+function readAdminExtrasFormData() {
+  const data = {};
+  for (const key of EXTRA_SAVE_FIELDS) {
+    const el = document.getElementById(`adm_ext_${key}`);
+    const none = document.getElementById(`adm_ext_${key}_none`);
+    if (none?.checked) data[key] = 'no_anotan';
+    else if (el) data[key] = el.value;
+  }
+  for (const question of EXTRA_SPECIAL_QUESTIONS) {
+    const hour = document.getElementById(`adm_ext_${question.key}_hour`)?.value || '';
+    const minute = document.getElementById(`adm_ext_${question.key}_minute`)?.value || '';
+    data[question.key] = hour && minute ? `${hour}:${minute}` : '';
+  }
+  data.customAciertos = {
+    ...((state.extras.resultados || {}).customAciertos || {}),
+  };
+  if (state.adminExtrasPerson) {
+    data.customAciertos[state.adminExtrasPerson] = [0, 1, 2].map(i =>
+      document.getElementById(`adm_custom_${state.adminExtrasPerson}_${i}`)?.checked === true
+    );
+  }
+  return data;
+}
+
+function renderAdminCustomPredictions(resultados) {
+  const participants = getBonusParticipants();
+  if (!state.adminExtrasPerson || !participants.some(p => p.clave === state.adminExtrasPerson)) {
+    state.adminExtrasPerson = participants[0]?.clave || null;
+  }
+  const selected = participants.find(p => p.clave === state.adminExtrasPerson);
+  const items = selected ? cleanCustomPredictions(state.extras[selected.clave]?.customPredicciones) : [];
+  const hits = selected && Array.isArray(resultados.customAciertos?.[selected.clave])
+    ? resultados.customAciertos[selected.clave]
+    : [];
+
+  return `
+    <div class="admin-custom-predictions">
+      <h3 class="admin-extras-title">Predicciones entre participantes</h3>
+      <p class="extras-custom-hint">Elige participante y marca Atino solo en las predicciones que si se cumplieron.</p>
+      <div class="person-tabs admin-custom-tabs">
+        ${participants.map(p => `
+          <button type="button" class="person-tab ${p.clave === state.adminExtrasPerson ? 'active' : ''}" data-admin-extra-person="${p.clave}">
+            ${escapeHTML(p.nombreVisible)}
+          </button>`).join('')}
+      </div>
+      <section class="extras-section-block admin-custom-person">
+        <h4 class="extras-team-section-title">${selected ? `Predicciones de ${escapeHTML(selected.nombreVisible)}` : 'Predicciones'}</h4>
+        ${items.length ? items.map((item, index) => `
+          <label class="admin-custom-row">
+            <span>${escapeHTML(item)}</span>
+            <input type="checkbox" id="adm_custom_${selected.clave}_${index}" ${hits[index] ? 'checked' : ''}>
+            <b>Atino</b>
+          </label>`).join('') : '<p class="admin-custom-empty">Aun no ha guardado predicciones personales.</p>'}
+      </section>
+    </div>`;
+}
+
+function renderAdminExtras() {
+  const el = document.getElementById('adminContent');
+  if (!el) return;
+
+  const resultados = state.extras['resultados'] || {};
+
+  el.innerHTML = `
+    <div class="admin-extras-card">
+      <h3 class="admin-extras-title">Capturar Resultados Reales del Reto</h3>
+      ${renderExtrasTeamsHeader()}
+      <form id="adminExtrasForm">
+        <div class="extras-question-list">
+          ${renderExtraQuestionRows(resultados, { admin: true })}
+        </div>
+        ${renderExtraGeneralQuestions(resultados, { admin: true })}
+        ${renderAdminCustomPredictions(resultados)}
+        ${renderExtraSpecialQuestions(resultados, { admin: true })}
+
+        <div class="admin-extras-actions">
+          <button type="submit" class="btn-primary" id="btnSaveAdminExtras">Guardar Resultados</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  const form = document.getElementById('adminExtrasForm');
+  if (form) {
+    form.querySelectorAll('[data-admin-extra-person]').forEach(button => {
+      button.addEventListener('click', e => {
+        const nextPerson = e.currentTarget.dataset.adminExtraPerson;
+        if (!nextPerson || nextPerson === state.adminExtrasPerson) return;
+        const currentData = readAdminExtrasFormData();
+        state.extras.resultados = {
+          ...(state.extras.resultados || {}),
+          customAciertos: {
+            ...((state.extras.resultados || {}).customAciertos || {}),
+            ...(currentData.customAciertos || {}),
+          },
+        };
+        state.adminExtrasPerson = nextPerson;
+        renderAdminExtras();
+      });
+    });
+    form.querySelectorAll('[data-player-picker]').forEach(button => {
+      button.addEventListener('click', e => {
+        openPlayerPicker(e.currentTarget.dataset.playerPicker, e.currentTarget.dataset.teamName);
+      });
+    });
+    form.querySelectorAll('[data-none-target]').forEach(checkbox => {
+      checkbox.addEventListener('change', e => {
+        const input = document.getElementById(e.currentTarget.dataset.noneTarget);
+        if (!input) return;
+        input.disabled = e.currentTarget.checked;
+        input.required = !e.currentTarget.checked;
+        if (e.currentTarget.checked) input.value = '';
+        const button = document.querySelector(`[data-player-picker="${e.currentTarget.dataset.noneTarget}"]`);
+        if (button) {
+          button.disabled = e.currentTarget.checked;
+          if (e.currentTarget.checked) {
+            button.textContent = 'Elegir jugador';
+            button.classList.remove('has-value');
+          }
+        }
+      });
+    });
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSaveAdminExtras');
+      btn.disabled = true;
+      btn.textContent = 'Guardando...';
+
+      try {
+        await saveAdminExtras(readAdminExtrasFormData());
+      } catch (err) {
+        // error toast handled in saveAdminExtras
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Guardar Resultados';
+      }
+    });
+  }
+}
+
+// ============================================================
 // Navegación
 // ============================================================
 function switchView(viewKey) {
-  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo', grupos: 'viewGrupos' };
+  const views = { podio: 'viewPodio', quiniela: 'viewQuiniela', info: 'viewInfo', grupos: 'viewGrupos', extras: 'viewExtras' };
   if (knockoutEnabled()) views.finales = 'viewFinales';
-  const target = views[viewKey] ? viewKey : 'podio';
+  const target = views[viewKey] ? viewKey : 'info';
   state.activeView = target;
   document.body.classList.toggle('podio-mode', target === 'podio');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.view === target));
@@ -4019,21 +5088,24 @@ function switchView(viewKey) {
   } else if (target === 'grupos') {
     renderGrupos();
     startGruposPolling();
+  } else if (target === 'extras') {
+    renderExtras();
+    stopGruposPolling();
   } else {
     stopGruposPolling();
   }
   updatePodioAudioPauseButton();
   renderShareToggle();
-  if (target === 'podio') {
+  if (target === 'podio' || target === 'extras') {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     podioMusicManuallyPaused = false;
     startPodioMusic();
-    renderPodio(true);
+    if (target === 'podio') renderPodio(true);
   } else {
     disposePodiumScene();
     stopPodioMusic();
   }
-  if (target === 'quiniela' || target === 'finales') {
+  if (target === 'quiniela' || target === 'finales' || target === 'extras') {
     requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }));
   }
   updateJumpButton();
@@ -4075,6 +5147,7 @@ async function handleLogin(e) {
       setStatus('Conectando...', 'loading');
     } else {
       state.selectedPerson = state.session.clave;
+      state.selectedExtrasPerson = state.session.clave;
       subscribeFirestore();
       switchView(knockoutEnabled() ? 'finales' : 'quiniela');
       setStatus('Conectando...', 'loading');
@@ -4149,6 +5222,7 @@ async function bootstrap() {
       setStatus('Conectando...', 'loading');
     } else {
       state.selectedPerson = state.session.clave;
+      state.selectedExtrasPerson = state.session.clave;
       subscribeFirestore();
       applyAuthGate();
       switchView('info');
@@ -4184,7 +5258,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!ok) return;
         state.adminEditingId = null;
       }
-      state.adminSection = btn.dataset.adminSection === 'predictions' ? 'predictions' : 'results';
+      state.adminSection = btn.dataset.adminSection;
       renderAdmin();
     });
   });
@@ -4206,6 +5280,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modalCancel').addEventListener('click', handleModalCancel);
   document.getElementById('confirmModal').addEventListener('click', e => {
     if (e.target.id === 'confirmModal') handleModalCancel();
+  });
+  document.getElementById('playerPickerSearch')?.addEventListener('input', e => {
+    renderPlayerPickerList(e.currentTarget.value);
+  });
+  document.getElementById('playerPickerCancel')?.addEventListener('click', closePlayerPicker);
+  document.getElementById('playerPickerModal')?.addEventListener('click', e => {
+    if (e.target.id === 'playerPickerModal') closePlayerPicker();
   });
   document.getElementById('settingsModal')?.addEventListener('click', e => {
     if (e.target.id === 'settingsModal') closeSettingsModal();

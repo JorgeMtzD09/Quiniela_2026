@@ -101,5 +101,15 @@ service cloud.firestore {
              .hasOnly(['items', 'actualizado', 'compartirPronosticos']);
       allow delete: if false;
     }
+
+    // Reglas para el Reto de Puntos Extra
+    match /extras/{documentId} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && (
+          documentId == 'resultados' ||
+          request.time < get(/databases/$(database)/documents/partidos/103).data.fecha
+        );
+    }
   }
 }

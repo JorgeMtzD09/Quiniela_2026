@@ -114,6 +114,28 @@
       </div>
 
       <div class="info-card">
+        <h3 class="info-card-title"><span class="info-card-emoji">⭐</span> Reglas del Bonus</h3>
+        <ul class="info-rules">
+          <li>
+            <span class="info-rule-icon">🏅</span>
+            <span>El organizador dará el premio del Bonus el <strong>31 de julio</strong>.</span>
+          </li>
+          <li>
+            <span class="info-rule-icon">✍️</span>
+            <span>Puedes cambiar tus predicciones cuantas veces quieras antes de que inicie la final. Cuando empiece el partido, ya nadie puede editar.</span>
+          </li>
+          <li>
+            <span class="info-rule-icon">🎯</span>
+            <span>El organizador no participa en el Bonus. Sí participa normalmente en la quiniela general.</span>
+          </li>
+          <li>
+            <span class="info-rule-icon">🤝</span>
+            <span>En caso de empate, los concursantes empatados decidirán si reparten el premio o juegan muerte súbita con algún juego o concurso improvisado.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="info-card">
         <h3 class="info-card-title"><span class="info-card-emoji">⚽</span> Puntos</h3>
         <div class="points-grid">
           <div class="point-item">
@@ -172,6 +194,18 @@
       </div>
     </section>
 
+    <section class="view" id="viewExtras">
+      <div class="extras-shell">
+        <div class="extras-hero">
+          <p class="extras-kicker">Bonus</p>
+          <h2 class="extras-title">Predicciones Nivel Experto</h2>
+          <p class="extras-copy">$1,000 al ganador</p>
+          <p class="extras-deadline">Puedes cambiar tus predicciones cuantas veces quieras antes de que inicie la final.</p>
+        </div>
+        <div id="extrasContent"></div>
+      </div>
+    </section>
+
     <button class="btn-jump-current" id="btnJumpCurrent" type="button"
             aria-label="Ir al próximo partido" title="Ir al próximo partido" hidden>
       <svg class="jump-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -188,6 +222,7 @@
       <div class="admin-tabs" role="group" aria-label="Sección de administración">
         <button type="button" class="admin-tab active" id="btnAdminResults" data-admin-section="results">Resultados</button>
         <button type="button" class="admin-tab" id="btnAdminPredictions" data-admin-section="predictions">Pronósticos</button>
+        <button type="button" class="admin-tab" id="btnAdminExtras" data-admin-section="extras">Bonus</button>
       </div>
       <p class="admin-sync-hint" id="adminSyncHint">
         Marcadores automáticos al abrir la app y al actualizar manualmente.
@@ -227,6 +262,12 @@
         <path d="M9 21h6"/>
       </svg>
       <span class="nav-label-two-line">Quiniela<br>Fase Final</span>
+    </button>
+    <button class="nav-btn" data-view="extras">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3l2.7 5.47 6.03.88-4.36 4.25 1.03 6-5.4-2.84-5.4 2.84 1.03-6-4.36-4.25 6.03-.88L12 3z"/>
+      </svg>
+      <span>Bonus</span>
     </button>
   </nav>
 
@@ -274,6 +315,21 @@
       <div class="modal-actions">
         <button type="button" class="btn-secondary" id="modalCancel">Cancelar</button>
         <button type="button" class="btn-primary" id="modalConfirm">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="playerPickerModal" hidden>
+    <div class="modal player-picker-modal">
+      <h3 class="modal-title" id="playerPickerTitle">Autor del primer gol</h3>
+      <p class="player-picker-lineups">
+        <span class="player-picker-info-icon" aria-hidden="true">i</span>
+        <span>Puedes ver las alineaciones <a id="playerPickerLineupsLink" href="#" target="_blank" rel="noopener">aqui</a>.</span>
+      </p>
+      <input class="player-picker-search" id="playerPickerSearch" type="search" placeholder="Buscar jugador" autocomplete="off">
+      <div class="player-picker-list" id="playerPickerList"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="playerPickerCancel">Cancelar</button>
       </div>
     </div>
   </div>
