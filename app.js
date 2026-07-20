@@ -4177,9 +4177,7 @@ function renderGrupos() {
 // Puntos Extra (Reto del Partido) Lógica
 // ============================================================
 function areExtrasLocked() {
-  const finalMatch = state.partidos.find(m => m.round === 'final' || m.id === 103);
-  if (finalMatch && matchStarted(finalMatch)) return true;
-  return false;
+  return state.extras.resultados?.cerrado === true;
 }
 
 function escapeHTML(value) {
@@ -4352,24 +4350,26 @@ function cleanExtraPayload(data, { admin = false } = {}) {
   for (const question of questions) {
     const value = data[question.key];
     if (question.type === 'select') {
+      if (value === undefined || value === null || value === '') continue;
       if (value !== 'si' && value !== 'no') throw new Error(`Elige Si o No para ${question.label}.`);
       payload[question.key] = value;
       continue;
     }
     if (question.type === 'time') {
       const text = normalizeBonusTime(value);
-      if (!text) throw new Error(`Completa ${question.label}.`);
+      if (!text) continue;
       payload[question.key] = text;
       continue;
     }
     if (question.type === 'range' && !admin) {
+      if (value === undefined || value === null || value === '') continue;
       if (!EXTRA_RANGE_OPTIONS.some(([key]) => key === value)) throw new Error(`Elige un rango para ${question.label}.`);
       payload[question.key] = value;
       continue;
     }
     if (question.type === 'scorer') {
       const text = String(value || '').trim();
-      if (!text) throw new Error(`Completa ${question.label}.`);
+      if (!text) continue;
       payload[question.key] = text === 'no_anotan' ? 'no_anotan' : text.slice(0, 80);
       continue;
     }
@@ -4378,11 +4378,13 @@ function cleanExtraPayload(data, { admin = false } = {}) {
         payload[question.key] = 'no_anotan';
         continue;
       }
+      if (value === undefined || value === null || value === '') continue;
       const n = Number(value);
       if (!Number.isInteger(n) || n < question.min || n > question.max) throw new Error(`Revisa ${question.label}.`);
       payload[question.key] = n;
       continue;
     }
+    if (value === undefined || value === null || value === '') continue;
     const n = Number(value);
     if (!Number.isInteger(n) || n < question.min || n > question.max) throw new Error(`Revisa ${question.label}.`);
     payload[question.key] = n;
@@ -4391,10 +4393,10 @@ function cleanExtraPayload(data, { admin = false } = {}) {
     payload.customAciertos = data.customAciertos && typeof data.customAciertos === 'object'
       ? data.customAciertos
       : {};
+    payload.cerrado = data.cerrado === true;
   } else {
     const customPredicciones = cleanCustomPredictions(data.customPredicciones);
-    if (customPredicciones.length < 3) throw new Error('Completa las tres predicciones entre participantes.');
-    payload.customPredicciones = customPredicciones;
+    if (customPredicciones.length) payload.customPredicciones = customPredicciones;
   }
   return payload;
 }
@@ -4405,7 +4407,7 @@ async function saveExtras(data) {
 
   await syncInternetClock();
 
-  if (areExtrasLocked()) throw new Error('Las respuestas ya están cerradas porque el partido ha comenzado.');
+  if (areExtrasLocked()) throw new Error('Las respuestas del Bonus ya están cerradas.');
 
   const clave = state.session.clave;
   const { doc, setDoc } = firestoreFns;
@@ -4494,7 +4496,7 @@ function renderExtrasLeaderboard(scores) {
 function renderRangeSelect(id, value, disabled = false) {
   const selectedValue = value || '';
   return `
-    <select class="extras-input-control" id="${id}" ${disabled ? 'disabled' : ''} required>
+    <select class="extras-input-control" id="${id}" ${disabled ? 'disabled' : ''}>
       <option value="" ${selectedValue === '' ? 'selected' : ''}></option>
       ${EXTRA_RANGE_OPTIONS.map(([key, label]) => `
         <option value="${key}" ${selectedValue === key ? 'selected' : ''}>${label}</option>`).join('')}
@@ -4512,12 +4514,12 @@ function renderScorerPicker(id, teamName, value, { disabled = false, admin = fal
   const roster = EXTRA_ROSTERS[rosterKeyForTeam(teamName)];
   if (!roster) {
     const className = admin ? 'admin-extras-input' : 'extras-input-control';
-    return `<input class="${className}" type="text" id="${id}" placeholder="Nombre" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''} required>`;
+    return `<input class="${className}" type="text" id="${id}" placeholder="Nombre" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''}>`;
   }
   const selected = String(value || '');
   const label = selected || 'Elegir jugador';
   return `
-    <input type="hidden" id="${id}" value="${escapeHTML(selected)}" ${disabled ? 'disabled' : ''} required>
+    <input type="hidden" id="${id}" value="${escapeHTML(selected)}" ${disabled ? 'disabled' : ''}>
     <button class="extras-player-picker-btn ${admin ? 'admin-player-picker-btn' : ''} ${selected ? 'has-value' : ''}" type="button"
             data-player-picker="${id}" data-team-name="${escapeHTML(teamName)}" ${disabled ? 'disabled' : ''}>
       ${escapeHTML(label)}
@@ -4544,13 +4546,13 @@ function renderExtraSideControl(questionDef, prefix, teamName, values, { admin =
       </label>`;
   } else if (questionDef.type === 'minute') {
     control = `
-      <input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="Min" value="${isNone ? '' : escapeHTML(value)}" ${isNone || disabled ? 'disabled' : ''} required>
+      <input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="Min" value="${isNone ? '' : escapeHTML(value)}" ${isNone || disabled ? 'disabled' : ''}>
       <label class="checkbox-inline-row extras-none-row">
         <input type="checkbox" id="${id}_none" data-none-target="${id}" ${isNone ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
         <span>No anotan</span>
       </label>`;
   } else {
-    control = `<input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="-" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''} required>`;
+    control = `<input class="${inputClass}" type="number" id="${id}" min="${questionDef.min}" max="${questionDef.max}" placeholder="-" value="${escapeHTML(value)}" ${disabled ? 'disabled' : ''}>`;
   }
 
   return `
@@ -4581,7 +4583,7 @@ function renderExtraGeneralQuestions(values, { admin = false, disabled = false }
         ${EXTRA_GENERAL_QUESTIONS.map(q => `
           <div class="extras-field-group">
             <label class="extras-input-label" for="${idPrefix}_${q.key}">${escapeHTML(q.label)}</label>
-            <select class="${inputClass}" id="${idPrefix}_${q.key}" ${disabled ? 'disabled' : ''} required>
+            <select class="${inputClass}" id="${idPrefix}_${q.key}" ${disabled ? 'disabled' : ''}>
               <option value="" ${values[q.key] !== 'si' && values[q.key] !== 'no' ? 'selected' : ''}></option>
               <option value="no" ${values[q.key] === 'no' ? 'selected' : ''}>No</option>
               <option value="si" ${values[q.key] === 'si' ? 'selected' : ''}>Si</option>
@@ -4601,13 +4603,13 @@ function renderExtraSpecialQuestions(values, { admin = false, disabled = false }
         <div class="extras-field-group">
           <label class="extras-input-label" for="${idPrefix}_${q.key}">${escapeHTML(q.label)}</label>
           <div class="extras-time-control">
-            <select class="${inputClass}" id="${idPrefix}_${q.key}_hour" ${disabled ? 'disabled' : ''} required>
+            <select class="${inputClass}" id="${idPrefix}_${q.key}_hour" ${disabled ? 'disabled' : ''}>
               <option value="" ${!normalizeBonusTime(values[q.key]) ? 'selected' : ''}></option>
               ${Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map(hour => `
                 <option value="${hour}" ${normalizeBonusTime(values[q.key]).slice(0, 2) === hour ? 'selected' : ''}>${hour}</option>`).join('')}
             </select>
             <span class="extras-time-separator">:</span>
-            <select class="${inputClass}" id="${idPrefix}_${q.key}_minute" ${disabled ? 'disabled' : ''} required>
+            <select class="${inputClass}" id="${idPrefix}_${q.key}_minute" ${disabled ? 'disabled' : ''}>
               <option value="" ${!normalizeBonusTime(values[q.key]) ? 'selected' : ''}></option>
               ${Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map(minute => `
                 <option value="${minute}" ${normalizeBonusTime(values[q.key]).slice(3, 5) === minute ? 'selected' : ''}>${minute}</option>`).join('')}
@@ -4627,7 +4629,7 @@ function renderCustomPredictionsForm(values, disabled = false) {
       ${[0, 1, 2].map(i => `
         <div class="extras-field-group">
           <label class="extras-input-label" for="ext_custom_${i}">Prediccion ${i + 1}</label>
-          <textarea class="extras-input-control extras-custom-textarea" id="ext_custom_${i}" maxlength="300" rows="1" required
+          <textarea class="extras-input-control extras-custom-textarea" id="ext_custom_${i}" maxlength="300" rows="1"
                     ${disabled ? 'disabled' : ''}>${escapeHTML(items[i] || '')}</textarea>
         </div>`).join('')}
     </section>`;
@@ -4719,7 +4721,6 @@ function setExtraNoneControl(checkbox) {
   const input = document.getElementById(checkbox.dataset.noneTarget);
   if (!input) return;
   input.disabled = checkbox.checked || state.extrasSaving;
-  input.required = !checkbox.checked;
   if (checkbox.checked) input.value = '';
   const button = document.querySelector(`[data-player-picker="${checkbox.dataset.noneTarget}"]`);
   if (button) {
@@ -4949,6 +4950,7 @@ function readAdminExtrasFormData() {
       document.getElementById(`adm_custom_${state.adminExtrasPerson}_${i}`)?.checked === true
     );
   }
+  data.cerrado = document.getElementById('adm_ext_cerrado')?.checked === true;
   return data;
 }
 
@@ -5002,6 +5004,10 @@ function renderAdminExtras() {
         ${renderExtraGeneralQuestions(resultados, { admin: true })}
         ${renderAdminCustomPredictions(resultados)}
         ${renderExtraSpecialQuestions(resultados, { admin: true })}
+        <label class="admin-extras-lock-row">
+          <input type="checkbox" id="adm_ext_cerrado" ${resultados.cerrado === true ? 'checked' : ''}>
+          <span>Cerrar Bonus y mostrar comparativa</span>
+        </label>
 
         <div class="admin-extras-actions">
           <button type="submit" class="btn-primary" id="btnSaveAdminExtras">Guardar Resultados</button>
@@ -5038,7 +5044,6 @@ function renderAdminExtras() {
         const input = document.getElementById(e.currentTarget.dataset.noneTarget);
         if (!input) return;
         input.disabled = e.currentTarget.checked;
-        input.required = !e.currentTarget.checked;
         if (e.currentTarget.checked) input.value = '';
         const button = document.querySelector(`[data-player-picker="${e.currentTarget.dataset.noneTarget}"]`);
         if (button) {
