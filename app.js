@@ -5025,6 +5025,7 @@ function renderAdminExtras() {
         const currentData = readAdminExtrasFormData();
         state.extras.resultados = {
           ...(state.extras.resultados || {}),
+          ...currentData,
           customAciertos: {
             ...((state.extras.resultados || {}).customAciertos || {}),
             ...(currentData.customAciertos || {}),
@@ -5054,6 +5055,28 @@ function renderAdminExtras() {
           }
         }
       });
+    });
+    form.addEventListener('input', () => {
+      const currentData = readAdminExtrasFormData();
+      state.extras.resultados = {
+        ...(state.extras.resultados || {}),
+        ...currentData,
+        customAciertos: {
+          ...((state.extras.resultados || {}).customAciertos || {}),
+          ...(currentData.customAciertos || {}),
+        },
+      };
+    });
+    form.addEventListener('change', () => {
+      const currentData = readAdminExtrasFormData();
+      state.extras.resultados = {
+        ...(state.extras.resultados || {}),
+        ...currentData,
+        customAciertos: {
+          ...((state.extras.resultados || {}).customAciertos || {}),
+          ...(currentData.customAciertos || {}),
+        },
+      };
     });
     form.addEventListener('submit', async e => {
       e.preventDefault();
